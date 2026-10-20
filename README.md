@@ -1,13 +1,27 @@
 # RAG Library API
 
-A modern Python API scaffold built with [FastAPI](https://fastapi.tiangolo.com/) and [uv](https://docs.astral.sh/uv/).
+A Python book catalog agent exposed through FastAPI, with EPUB ingestion and
+semantic search CLI workflows. Managed with `uv`.
+
+This is a learning and experimentation project for querying and analyzing books.
+Keep retrieval, chunking, persistence, prompts, and evaluation understandable,
+preserve book/chapter/chunk provenance, and add infrastructure when it solves a
+current problem. The current application has no frontend or production deployment.
+
+The stack uses FastAPI, SQLAlchemy 2.x, PostgreSQL with pgvector,
+LangChain components, and OpenAI embedding and chat models.
 
 ## Requirements
 
 - Python 3.12+
 - uv
+- PostgreSQL with the `pgvector` extension available for catalog and RAG workflows
+- An OpenAI API key for ingestion, search, answering, and evaluation
 
 ## Setup
+
+Copy `.env.example` to `.env` and fill in `DATABASE_URL` and `OPENAI_API_KEY`.
+Keep local books and notebook outputs out of source control.
 
 Create the virtual environment and install the locked dependencies:
 
@@ -15,11 +29,11 @@ Create the virtual environment and install the locked dependencies:
 uv sync
 ```
 
-This creates `.venv/` and `uv.lock`. Activate the environment if you want a traditional shell workflow:
-
-```bash
-source .venv/bin/activate
-```
+This creates `.venv/` using the committed `uv.lock`. Run all commands from the
+repository root with `uv`. Use `uv run python` for Python modules and scripts so
+they use the project's environment; no manual environment activation is needed.
+EPUB inspection, offline tests, and code checks do not require a running database
+or OpenAI credentials.
 
 ## Run the API
 
@@ -40,12 +54,19 @@ uv sync --group notebooks
 uv run jupyter lab
 ```
 
-The starter notebook in `notebooks/` calls the FastAPI app in-process and includes a small LangChain prompt experiment. Keep reusable application logic in `src/rag_library/`, then move stable experiments into tested services and endpoints.
+Open `notebooks/01_catalog_agent.ipynb` using the project `.venv` kernel. It
+creates a fresh catalog agent with `get_agent()`, exercises the same response
+helper as `/agent`, and lets you inspect native messages, tool calls, and an
+explicit follow-up conversation. No API server is needed. Re-run the setup cell
+to reload `.env` and create a new agent. Notebook outputs are intentionally empty
+so credentials and catalog data are not committed.
 
 ## Verify
 
+Run the offline tests and code checks:
+
 ```bash
-uv run pytest
+uv run python -m unittest discover -s tests
 uv run ruff check .
 uv run ruff format --check .
 ```
@@ -57,35 +78,64 @@ database, run:
 
 ```bash
 uv run epub-ingestion-debug "./book.epub"
+uv run epub-ingestion-debug "./book.epub" --show-excluded
 ```
 
-The command prints the book title followed by its table-of-contents entries,
-including named sections and numbered chapters.
+The command uses the ingestion extractor to print the book title, named sections,
+and detected chapter numbers. When the EPUB has no usable table of contents, it
+uses reading-order files and recognizes HTML headings or standalone numbered
+paragraphs at the start of a file. The numbered-chapter count excludes sections
+with unknown chapter numbers. TOC labels are reconciled with the reading order
+so unlisted narrative interludes between chapters are retained.
+
+Auxiliary classification uses document-level EPUB guide/semantic labels,
+recognized section headings, and corroborated title/copyright filenames.
+Clearly editorial introductions, prefaces, forewords, and afterwords are
+excluded. An ambiguous TOC label alone does not discard story material;
+prologues, epilogues, part epigraphs, notes, and unknown narrative sections stay.
+`--show-excluded` prints each excluded file and the evidence for classification.
+See `docs/corpus-cleanup-report.md` for the current local EPUB inspection.
 
 Set `DATABASE_URL` and `OPENAI_API_KEY` in `.env`, then run:
 
 ```bash
-uv run python -m rag_library.ingest --file "./book.epub"
+uv run python -m rag_library.cli.ingest --file "./book.epub"
 ```
 
 The database must be PostgreSQL with the `pgvector` extension available. The
 first run creates the vector extension and application tables automatically.
 Ingestion uses 1000-character chunks with 200-character overlap and
 `text-embedding-3-small` by default. Re-ingesting identical EPUB content
-replaces its existing book and chunks.
+replaces its existing book and chunks and assigns a new book ID. Existing
+chunks do not change until ingestion runs again; list the current IDs afterward:
+
+```bash
+uv run python -m rag_library.cli.books
+```
+
+No ingestion or model calls are performed by `epub-ingestion-debug`.
 
 ## Search ingested books
 
 Run a semantic search against the stored chunks:
 
 ```bash
-uv run python -m rag_library.search "something"
-uv run python -m rag_library.search "something" --limit 10
-uv run python -m rag_library.search "something" --verbose
-uv run python -m rag_library.search "something" --chapter 1,2,3
+uv run python -m rag_library.cli.search "something" --book-id 1
+uv run python -m rag_library.cli.search "something" --book-id 1 --limit 10
+uv run python -m rag_library.cli.search "something" --book-id 1 --verbose
+uv run python -m rag_library.cli.search "something" --book-id 1 --chapter 1,2,3
+uv run python -m rag_library.cli.search "something" --book-id 1 --limit 10 --verbose --chapter 1,2
 ```
 
-Results are ordered by pgvector cosine similarity. The default output shows
+Replace `1` with a current catalog ID from `cli.books`. Both `search` and `ask`
+require exactly one book. `--book-id` can be omitted only when the catalog has
+one book; an ambiguous or invalid selection fails without embedding calls.
+Use a content-only query: select the book with the argument instead of adding
+its title to the search text. Reusable `semantic_search()` and `ask_question()`
+require a nonempty keyword-only `book_ids` list; the CLI wraps its single
+selection in this list.
+
+Results are ordered by pgvector cosine similarity within the selected book. The default output shows
 compact previews; use `--verbose` to print each complete matching chunk.
 Use `--chapter` to restrict results to one or more 1-based EPUB document/chapter
 numbers.
@@ -96,8 +146,8 @@ Retrieve the top five chunks and ask the configured chat model to answer using
 only that book context:
 
 ```bash
-uv run python -m rag_library.ask "Who is Nicolas?"
-uv run python -m rag_library.ask "Who is Nicolas?" --top-k 8
+uv run python -m rag_library.cli.ask "Who is Nicolas?" --book-id 1
+uv run python -m rag_library.cli.ask "Who is Nicolas?" --book-id 1 --top-k 8
 ```
 
 Set `OPENAI_CHAT_MODEL` to choose the chat model; it defaults to
@@ -105,183 +155,303 @@ Set `OPENAI_CHAT_MODEL` to choose the chat model; it defaults to
 used to produce it. Use `--top-k` to control how many chunks are supplied as
 context; it defaults to 5.
 
-## Catalog agent
+## Book agent
 
 `POST /agent` answers one independent message using a LangChain agent with
-one tool, `list_books`. Set `DATABASE_URL` and `OPENAI_API_KEY`; the agent uses
+two tools, `list_books` and `answer_book_question`. Set `DATABASE_URL` and `OPENAI_API_KEY`; the agent uses
 `OPENAI_CHAT_MODEL` (default: `gpt-4o-mini`). Start the API as described above,
 then send a request:
 
 ```bash
 curl -X POST http://127.0.0.1:8000/agent \
   -H 'Content-Type: application/json' \
-  -d '{"message": "What books are available?"}'
+  -d '{"message": "Which town does the Creed family move to?", "book_ids": [1]}'
 ```
 
-Example response (the answer text depends on the model):
+Choose current IDs through `GET /books` (or `uv run python -m rag_library.cli.books`).
+That catalog includes each book's `content_sha256`. The API requires one or more
+positive integer IDs in every request and validates all attachments before
+initializing the agent. Missing, empty, or unknown IDs return HTTP 422.
+The caller keeps the selected IDs between requests; the backend does not persist
+chats or attachment state.
 
-```json
-{
-  "answer": "A Book is available.",
-  "tool_calls": [
-    {
-      "name": "list_books",
-      "arguments": {},
-      "result": {
-        "books": [
-          {"id": 1, "title": "A Book", "authors": null, "language": "es"}
-        ]
-      }
-    }
-  ]
-}
-```
+Attachments enter an `AgentContext` in `agent/context.py`, passed to `run_agent()`.
+LangChain injects this context into the tools; the model sees only the question
+argument on `answer_book_question`. Its `list_books` tool exposes only attached
+books. The separate `GET /books` endpoint exposes the whole catalog for selection.
 
-The catalog reads all ingested books, ordered by title and ID, without reading
-passages or creating embeddings. Unknown metadata stays `null`. An empty table
-returns `{"books": []}`; ingestion must have created the schema beforehand.
 The model's final answer uses provider-native structured output with a strict
 Pydantic `AgentAnswer` schema. The server reads the validated `structured_response`
 and combines it with tool records; the model does not generate the tool log.
 The configured OpenAI model must support structured output together with tools.
 Invalid structured answers return HTTP 503, like other execution errors.
 The tool log comes from actual execution messages. Greetings can return an
-empty `tool_calls` list. Summaries and questions about book contents are not
-supported by this agent yet; the existing `ask` CLI remains available for RAG.
+empty `tool_calls` list. Book-content questions use `answer_book_question`, a
+thin wrapper around the same `ask_question()` workflow used by the `ask` CLI.
+It retrieves five chunks and returns the grounded answer plus source passages
+with book ID/title, chapter, and chunk references in the tool log. The agent
+uses the attached IDs automatically. SQL filters with `book_id IN (...)`,
+then selects the five closest chunks across the pooled attachments. A book need
+not contribute a chunk to that global top five. Each source retains its own
+book ID, title, chapter, and chunk index. The model cannot widen the scope by
+supplying another book ID. Questions normally omit the title because the caller
+has already chosen the books. Multiple attachments are supported per request.
+Answers are limited to the retrieved context.
 
 Messages must contain 1-4000 characters after trimming surrounding whitespace;
 invalid requests return HTTP 422. Database, provider, and execution-limit errors
 return HTTP 503 with `{"detail": "Agent service unavailable"}` and server logs.
 Each request allows at most three model calls and two tool calls. Model calls
-have a 30-second timeout with automatic retries disabled.
+have a 30-second timeout with automatic retries disabled. These limits apply
+to the outer agent; the existing RAG model and embedding calls inside the
+book-answer tool retain their provider defaults.
 
 This JSON endpoint is for local experiments: it has no authentication,
 pagination, conversation history, or session persistence. `/` and `/health` do
 not initialize the agent or require credentials. The endpoint is also available
 in `/docs`.
 
-## Streaming chat with AI SDK
-
-`POST /chat` accepts AI SDK UI messages and emits the
-[UI message SSE protocol](https://ai-sdk.dev/docs/ai-sdk-ui/stream-protocol),
-with `x-vercel-ai-ui-message-stream: v1`. It uses the same catalog tool, model,
-prompt, and execution limits as `/agent`, with plain-text token streaming rather
-than structured final output. The JSON endpoint is unchanged.
-
-```bash
-curl -N http://127.0.0.1:8000/chat \
-  -H 'Content-Type: application/json' \
-  -d '{"messages":[{"id":"u1","role":"user","parts":[{"type":"text","text":"What books are available?"}]}]}'
-```
-
-Configure an AI SDK client with the default transport:
-
-```tsx
-import { useChat } from '@ai-sdk/react';
-import { DefaultChatTransport } from 'ai';
-
-export function useLibraryChat() {
-  return useChat({
-    transport: new DefaultChatTransport({
-      api: '/chat',
-      prepareSendMessagesRequest: ({ messages }) => ({
-        body: { messages: messages.slice(-40) },
-      }),
-    }),
-  });
-}
-
-// In your component: const { messages, sendMessage, status, error, stop } = useLibraryChat();
-// Submit: sendMessage({ text: input }); Cancel: stop();
-// Render text parts with part.type === 'text' and part.text.
-// Tool parts have type 'tool-list_books', toolCallId, state, input, and output.
-```
-
-Serve the frontend and API through the same origin, or proxy `/chat`
-through the frontend server. Cross-origin CORS is not configured automatically.
-AI SDK sends history from the client on each turn; the server keeps no sessions.
-Only user and assistant roles are accepted. User messages support text only;
-assistant text is retained, while UI tool results and reasoning are ignored when
-building model history. Book metadata claims still require a fresh catalog call.
-
-Requests support at most 40 messages, 4000 trimmed text characters per message,
-and 24000 total text characters. Oversized or invalid history returns HTTP 422;
-the client should send a smaller history when necessary. IDs and other UI message
-metadata are accepted but not used for server persistence. The last message must
-be a nonempty user message; submitting after a server tool result does not require
-an automatic extra client turn.
-
-Streams include text start/delta/end, tool input/output, step boundaries, message
-completion, and `[DONE]`. Provider/database/limit failures after streaming begins
-produce a generic `error` event and `[DONE]`, rather than changing the HTTP status
-or reporting success. Initialization failures still return HTTP 503. Stopping the
-client cancels ongoing model generation and closes the stream; a synchronous SQL
-query already running in a worker thread may finish. There is no server-side
-conversation storage or stream resumption.
-
-## Evaluate retrieval and answers
-
-The end-to-end QA cases are in `evals/baseline.json`. The primary retrieval
-benchmark is `evals/retrieval_v1.json`: 18 Spanish questions about *Una semana
-en la nieve*, with chunk-level relevance labels, including 8 exact-term cases.
-English cross-language questions are kept in the separate diagnostic set
-`evals/retrieval_en_diagnostic_v1.json` (13 cases) and do not affect the
-Spanish benchmark scores. The cases cover factual paraphrases, entities,
-exact terms, multi-hop questions, chapter filters, and cross-language
-retrieval. Dataset labels contain source identifiers rather than book passages.
-
-Set `LANGSMITH_API_KEY` in `.env`, then run:
-
-```bash
-uv run python -m rag_library.evaluation
-uv run python -m rag_library.evaluation --top-k 8
-uv run python -m rag_library.evaluation --dataset ./evals/my-cases.json
-uv run python -m rag_library.evaluation --task retrieval
-uv run python -m rag_library.evaluation --task retrieval --top-k 10
-uv run python -m rag_library.evaluation --task retrieval --retrieval-language en
-```
-
-The default `qa` task runs end-to-end answer evaluation. The `retrieval` task
-calls semantic search directly and scores chunk hit@k, chunk recall@k, MRR@k,
-chapter recall@k, and chapter-filter compliance. It makes embedding calls but
-does not call the answer model or judge. Both tasks upload full traces,
-including retrieved book passages, to LangSmith. Each local dataset suite and
-version is synchronized to its own LangSmith dataset, so Spanish benchmark
-scores and English diagnostic scores stay separate.
-Use `--retrieval-language en` to run the English diagnostic set; the retrieval
-task defaults to the Spanish primary set.
-
-Retrieval case labels use chunk indices from the current ingestion. If chunking
-changes, review the labels and increment the dataset version. To add a
-retrieval case, use this shape for each entry in `cases`:
-
-```json
-{
-  "id": "unique-case-id",
-  "question": "Pregunta basada en un libro ingerido",
-  "query_type": "fact_paraphrase",
-  "language": "es",
-  "chapter_filter": null,
-  "expected_sources": [
-    {"book_title": "Book title", "chapter_number": 1, "chunk_index": 12}
-  ]
-}
-```
-
-Each retrieval dataset also declares its suite (`es_primary` or
-`en_diagnostic`) and version at the top level. A suite may contain cases in
-only its declared language.
-
-For chapter-filter cases, set `query_type` to `chapter_filtered` and list the
-allowed 1-based chapter numbers in `chapter_filter`. Keep EPUB files and
-passages out of source control.
-
 ## Project layout
 
+Current layout (cache directories, local books, and generated results omitted;
+each Python package also contains `__init__.py`):
+
 ```text
-src/rag_library/  Application package
-notebooks/         Interactive API and RAG experiments
-tests/             API tests
-pyproject.toml     Project metadata and tool configuration
-uv.lock            Reproducible dependency lockfile
+.
+├── AGENTS.md
+├── README.md
+├── .env.example
+├── .gitignore
+├── .python-version
+├── pyproject.toml
+├── uv.lock
+├── eval.py                         # Evaluation CLI entry point
+├── src/
+│   └── rag_library/
+│       ├── main.py                 # FastAPI setup and route registration
+│       ├── catalog.py              # Catalog queries and book selection
+│       ├── config.py               # Environment settings
+│       ├── database.py             # SQLAlchemy models and schema setup
+│       ├── evaluation.py           # Answer generation and persistence
+│       ├── deepeval_evaluation.py  # DeepEval scoring integration
+│       ├── agent/
+│       │   ├── agent.py
+│       │   ├── context.py
+│       │   ├── models.py
+│       │   ├── prompts.py
+│       │   └── tools.py
+│       ├── api/
+│       │   ├── routes.py
+│       │   └── schemas.py
+│       ├── cli/
+│       │   ├── ask.py
+│       │   ├── books.py
+│       │   ├── eval.py
+│       │   ├── ingest.py
+│       │   ├── inspect_epub.py
+│       │   └── search.py
+│       ├── ingestion/
+│       │   ├── epub.py
+│       │   └── pipeline.py
+│       └── rag/
+│           ├── answering.py
+│           ├── retriever.py
+│           └── search.py
+├── docs/
+│   ├── corpus-cleanup-report.md
+│   └── eval-reassessment-2026-10-19.md
+├── evals/
+│   ├── README.md
+│   └── basic.json                  # Curated evaluation cases
+├── notebooks/
+│   ├── 01_catalog_agent.ipynb
+│   └── 03_basic_evals.ipynb
+├── Untitled1.ipynb                 # Root-level scratch notebook
+└── tests/
+    ├── test_attached_context.py
+    ├── test_book_scope.py
+    ├── test_deepeval_evaluation.py
+    ├── test_epub_ingestion.py
+    ├── test_eval_stages.py
+    └── test_evaluation.py
 ```
+
+
+Keep API and CLI entry points thin. Reusable workflows live in the corresponding
+Python modules so notebooks and future agent tools can call them directly.
+Use absolute imports beginning with `rag_library` and import workflows from
+their implementation modules, such as `ingestion.pipeline` or `rag.answering`.
+When moving modules, update imports, CLI commands, script targets, notebooks,
+and documentation together. See [AGENTS.md](AGENTS.md) for the full development
+conventions.
+
+## Agent evaluation with DeepEval
+
+DeepEval is the main evaluation runner, following the
+[RAG QA tutorial](https://deepeval.com/tutorials/rag-qa-agent/evaluation).
+With dependencies installed (`uv sync`), the referenced EPUB ingested, and `.env`
+configured, run from the repository root:
+
+```bash
+uv run python eval.py
+```
+
+The runner reads `evals/basic.json`: ten English questions about Pet Sematary.
+It calls the full agent independently for each question, including tool selection
+and query rewriting, then passes the entire batch to DeepEval’s `evaluate()`
+Python API. No pytest runner or parametrization is involved. The source JSON
+stays curated: `id`, `question`, `expected_answer`, and a nonempty `book_refs`
+list of lowercase `content_sha256` strings. Each case also has source-verified
+`reference_evidence` for manual auditing; see [the dataset guide](evals/README.md)
+for its fields, answer conventions, and baseline changes. No synthesizer is used. These hashes
+identify exact EPUB bytes, so reingestion can change numeric IDs without changing
+the eval references. A different EPUB edition or modified file has another hash.
+Before each invocation, references resolve to current IDs; missing references
+fail that case explicitly. Questions contain only the content question.
+
+Generated answers save `book_refs`, resolved `book_ids`, and `attached_books`
+metadata. The same fields enter DeepEval case metadata, alongside tool records.
+Rescoring uses the saved answers and scope without resolving or retrieving again;
+older answer files remain scoreable but do not acquire missing attachment metadata.
+Regenerate answers to evaluate the new attachment behavior.
+
+Each response becomes an `LLMTestCase`: the original question is `input`, the
+expected answer is `expected_output`, the final agent answer is `actual_output`,
+and passages from actual `answer_book_question` executions become
+`retrieval_context`, in execution/retrieval order. Full tool results remain in
+case metadata for book/chapter/chunk provenance. No second retrieval is performed.
+Agent answers and tool records are checkpointed to `evals/basic_result.json`.
+During generation, the terminal shows each case's position, ID, and question
+before the agent call, then its elapsed time, executed tool names, retrieved
+passage count, and checkpoint status. Failed cases display their errors and the
+remaining questions continue. A transition message identifies when the saved
+answers are being prepared for DeepEval scoring.
+Cases with agent errors or missing passages stay in the saved results as failed
+cases, without judge scores, and cause a nonzero exit status. Judge errors are
+also recorded as failures while the remaining metrics/cases continue.
+
+The five metrics use an initial **0.7 threshold**, defined in
+`src/rag_library/deepeval_evaluation.py`:
+
+| Metric | What it checks |
+| --- | --- |
+| Contextual relevancy | Whether retrieved content is relevant to the question |
+| Contextual recall | Whether retrieved content supports the expected answer |
+| Contextual precision | Whether relevant chunks rank ahead of irrelevant chunks |
+| Faithfulness | Whether the final answer is grounded in the retrieved content |
+| Answer correctness (G-Eval) | Whether the final answer matches the expected facts, allowing paraphrases |
+
+Every metric must pass for a question to pass. These initial thresholds and judge
+scores are a starting point for iteration, not an objective measure of quality.
+The curated answers are the correctness reference: review ambiguous questions
+and incorrect references before interpreting failures as RAG regressions.
+
+The judge defaults to `OPENAI_CHAT_MODEL`. Override it independently in `.env`:
+
+```dotenv
+EVAL_JUDGE_MODEL=gpt-4o-mini
+```
+
+The judge uses `OPENAI_API_KEY`. Running the suite incurs agent, retrieval, and
+additional judge calls. Answer collection is sequential; DeepEval then evaluates
+the collected cases and metrics asynchronously, with a default concurrency
+limit of 20. Evaluation caching is disabled so each scoring run uses fresh
+judge calls, matching the reference workflow.
+It prints progress, scores, reasons, and pass/fail results in the terminal.
+Adjust concurrency with:
+
+```bash
+uv run python eval.py --max-concurrent 2
+```
+
+DeepEval is the sole store for scored results. Configure its local SQLite backend
+in `.env` (the same settings are included in `.env.example`):
+
+```dotenv
+DEEPEVAL_LOCAL_STORE=sqlite
+DEEPEVAL_RESULTS_FOLDER=evals/results
+```
+
+Each scoring run is appended to `evals/results/deepeval.db`, including cases,
+metric scores, reasons, and tool-call metadata. No custom scored JSON export is
+written. The answers file remains JSON for independent re-scoring. Change the
+runner's database folder with `--results-folder`; use the same
+`DEEPEVAL_RESULTS_FOLDER` when inspecting that database.
+
+Browse stored runs with DeepEval:
+
+```bash
+uv run deepeval inspect --list
+uv run deepeval inspect --run-id 1
+```
+
+Results are local and ignored by Git. A Confident AI login is not required;
+this suite does not push datasets or configure cloud reporting. Existing JSON
+reports are left in place; switching backends does not migrate them.
+
+### Generate and score
+
+This follows the staged runner/scorer workflow from
+[Mohamad Hachem's evaluation project](https://github.com/Mohamad-Hachem/LLM_Evaluation_System).
+The scripts in that project use JSONL; this project retains JSON arrays so the
+existing question set and manual notebook continue to work.
+
+```bash
+# 1. Agent calls only; save answers, actual retrieved passages, and tool records.
+uv run python eval.py generate
+
+# 2. Judge calls only; read the saved answers and evaluate the whole batch.
+uv run python eval.py score
+```
+
+`uv run python eval.py` (or `uv run python eval.py all`) performs both stages.
+DeepEval prints its own evaluation summary after scoring. To re-score
+an unchanged RAG run with a different judge, change `EVAL_JUDGE_MODEL` and run
+only `score`; it does not call the agent or retrieve again.
+
+| File | Contents |
+| --- | --- |
+| `evals/basic.json` | Curated questions and expected answers |
+| `evals/basic_result.json` | Frozen agent answers, passages, tool records, errors |
+| `evals/results/deepeval.db` | DeepEval run history, answers, context, tool records, metric scores and reasons |
+
+DeepEval retains case IDs with scored results. Cases with generation errors or
+no book passages remain in the intermediate answers file and are reported in
+the terminal; they are not submitted to the judge and are absent from the
+DeepEval report. They still cause the command to exit with failure.
+
+Re-running `generate` replaces the answers file, while each scoring run appends
+a new database run. Use `--output` to retain named answer snapshots:
+
+```bash
+uv run python eval.py all --output evals/results/baseline/answers.json
+uv run python eval.py score --output evals/results/baseline/answers.json
+```
+
+All evaluation options can be passed after the stage:
+
+```bash
+uv run python eval.py all \
+  --dataset evals/basic.json \
+  --output evals/results/baseline/answers.json \
+  --results-folder evals/results \
+  --max-concurrent 2
+```
+
+| Option | Default | Purpose |
+| --- | --- | --- |
+| Stage | `all` | `all`, `generate`, or `score` |
+| `--dataset` | `evals/basic.json` | Curated cases to generate answers for |
+| `--output` | `evals/basic_result.json` | Write generated answers or read saved answers for scoring |
+| `--results-folder` | `evals/results` | DeepEval result database folder |
+| `--max-concurrent` | `20` | Maximum concurrent scoring tasks; must be positive |
+| `--manual` | Disabled | Alias for `generate`; cannot be combined with `score` |
+
+The legacy alias can also be run explicitly:
+
+```bash
+uv run python eval.py --manual
+```
+
+The existing
+`notebooks/03_basic_evals.ipynb` still uses the original manual workflow.

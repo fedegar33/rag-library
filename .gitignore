@@ -1,0 +1,27 @@
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+dist/
+*.egg-info/
+.env
+.env.*
+!.env.example
+
+# Local books, IDE files, and personal experiments
+.DS_Store
+.idea/
+books/
+*.epub
+Untitled.ipynb
+notebooks/02_explorar_epubs.ipynb
+
+# Generated evaluation answers and retrieved passages
+evals/*_result.json
+evals/results/
+.deepeval/
+.latest_test_run.json
+.temp_test_run_data.json
+.deepeval_telemetry.txt

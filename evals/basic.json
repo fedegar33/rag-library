@@ -1,0 +1,183 @@
+[
+  {
+    "id": "sematary-01",
+    "question": "Which town does the Creed family move to?",
+    "expected_answer": "Ludlow.",
+    "book_refs": [
+      "febee370a08c79626e848f916073b9c23d2ebed76f5976eee28b0dfc2f45bddd"
+    ],
+    "reference_evidence": [
+      {
+        "book_ref": "febee370a08c79626e848f916073b9c23d2ebed76f5976eee28b0dfc2f45bddd",
+        "chapter": 1,
+        "document_path": "OEBPS/Text/0743412273_Pet_Sematary_Chapter_01.html",
+        "text": "He met this man on the evening he and his wife and his two children moved into the big white frame house in Ludlow."
+      }
+    ]
+  },
+  {
+    "id": "sematary-02",
+    "question": "Which city does the Creed family move from?",
+    "expected_answer": "Chicago.",
+    "book_refs": [
+      "febee370a08c79626e848f916073b9c23d2ebed76f5976eee28b0dfc2f45bddd"
+    ],
+    "reference_evidence": [
+      {
+        "book_ref": "febee370a08c79626e848f916073b9c23d2ebed76f5976eee28b0dfc2f45bddd",
+        "chapter": 1,
+        "document_path": "OEBPS/Text/0743412273_Pet_Sematary_Chapter_01.html",
+        "text": "Rachel, still not entirely sure about this move to Maine from Chicago, where she had lived her whole life, burst into tears."
+      }
+    ]
+  },
+  {
+    "id": "sematary-03",
+    "question": "What is Louis Creed's wife's first name?",
+    "expected_answer": "Rachel.",
+    "book_refs": [
+      "febee370a08c79626e848f916073b9c23d2ebed76f5976eee28b0dfc2f45bddd"
+    ],
+    "reference_evidence": [
+      {
+        "book_ref": "febee370a08c79626e848f916073b9c23d2ebed76f5976eee28b0dfc2f45bddd",
+        "chapter": 3,
+        "document_path": "OEBPS/Text/0743412273_Pet_Sematary_Chapter_03.html",
+        "text": "Yes. Louis Creed. This is my wife Rachel, my daughter Ellie, and the kid with the bee sting is Gage."
+      }
+    ]
+  },
+  {
+    "id": "sematary-04",
+    "question": "What is the name of the bull buried in the Micmac burial ground?",
+    "expected_answer": "Hanratty.",
+    "book_refs": [
+      "febee370a08c79626e848f916073b9c23d2ebed76f5976eee28b0dfc2f45bddd"
+    ],
+    "reference_evidence": [
+      {
+        "book_ref": "febee370a08c79626e848f916073b9c23d2ebed76f5976eee28b0dfc2f45bddd",
+        "chapter": 24,
+        "document_path": "OEBPS/Text/0743412273_Pet_Sematary_Chapter_24.html",
+        "text": "Old Zack McGovern, who used to live out on Stackpole Road, buried his prize bull Hanratty in the Micmac burying ground back in 1967 or ’68."
+      }
+    ]
+  },
+  {
+    "id": "sematary-05",
+    "question": "What is Church the cat's full name?",
+    "expected_answer": "Winston Churchill.",
+    "book_refs": [
+      "febee370a08c79626e848f916073b9c23d2ebed76f5976eee28b0dfc2f45bddd"
+    ],
+    "reference_evidence": [
+      {
+        "book_ref": "febee370a08c79626e848f916073b9c23d2ebed76f5976eee28b0dfc2f45bddd",
+        "chapter": 6,
+        "document_path": "OEBPS/Text/0743412273_Pet_Sematary_Chapter_06.html",
+        "text": "“My daughter’s got a cat,” he said. “Winston Churchill. We call him Church for short.”"
+      }
+    ]
+  },
+  {
+    "id": "sematary-06",
+    "question": "Which of Louis's children owns Church the cat?",
+    "expected_answer": "Ellie.",
+    "book_refs": [
+      "febee370a08c79626e848f916073b9c23d2ebed76f5976eee28b0dfc2f45bddd"
+    ],
+    "answer_notes": "Ellie and Eileen name the same child. Either name is acceptable; no surname is required.",
+    "reference_evidence": [
+      {
+        "book_ref": "febee370a08c79626e848f916073b9c23d2ebed76f5976eee28b0dfc2f45bddd",
+        "chapter": 1,
+        "document_path": "OEBPS/Text/0743412273_Pet_Sematary_Chapter_01.html",
+        "text": "Winston Churchill moved in with them. Church was his daughter Eileen’s cat."
+      },
+      {
+        "book_ref": "febee370a08c79626e848f916073b9c23d2ebed76f5976eee28b0dfc2f45bddd",
+        "chapter": 3,
+        "document_path": "OEBPS/Text/0743412273_Pet_Sematary_Chapter_03.html",
+        "text": "Yes. Louis Creed. This is my wife Rachel, my daughter Ellie, and the kid with the bee sting is Gage."
+      }
+    ]
+  },
+  {
+    "id": "sematary-07",
+    "question": "Which relative does Louis physically fight with at Gage's viewing?",
+    "expected_answer": "His father-in-law.",
+    "book_refs": [
+      "febee370a08c79626e848f916073b9c23d2ebed76f5976eee28b0dfc2f45bddd"
+    ],
+    "reference_evidence": [
+      {
+        "book_ref": "febee370a08c79626e848f916073b9c23d2ebed76f5976eee28b0dfc2f45bddd",
+        "chapter": 37,
+        "document_path": "OEBPS/Text/0743412273_Pet_Sematary_Chapter_37.html",
+        "text": "His father-in-law kicked out at him again and Louis caught his shoe in both hands—it thwapped solidly into his palms like a well-caught football—and shoved backward as hard as he could."
+      }
+    ]
+  },
+  {
+    "id": "sematary-08",
+    "question": "What is Gage doing immediately before he is struck by the truck?",
+    "expected_answer": "Running into the road.",
+    "book_refs": [
+      "febee370a08c79626e848f916073b9c23d2ebed76f5976eee28b0dfc2f45bddd"
+    ],
+    "answer_notes": "Accept running toward Route 15 or running away from his parents toward the road. The kite outing is an earlier event; the imagined rescue and subsequent school/camp biography are not actual events.",
+    "reference_evidence": [
+      {
+        "book_ref": "febee370a08c79626e848f916073b9c23d2ebed76f5976eee28b0dfc2f45bddd",
+        "chapter": 36,
+        "document_path": "OEBPS/Text/0743412273_Pet_Sematary_Chapter_36.html",
+        "text": "They were yelling at Gage to come back, but he wouldn’t—lately the game had been to run away from Mommy-Daddy—and then they were chasing him, Louis quickly outdistancing Rachel, but Gage had a big lead, Gage was laughing, Gage was running away from Daddy—that was the game—and Louis was closing the distance but too slowly, Gage was running down the mild slope of the lawn now to the verge of Route 15"
+      },
+      {
+        "book_ref": "febee370a08c79626e848f916073b9c23d2ebed76f5976eee28b0dfc2f45bddd",
+        "chapter": 36,
+        "document_path": "OEBPS/Text/0743412273_Pet_Sematary_Chapter_36.html",
+        "text": "Gage’s forward motion had carried him out into the road, and the truck had been thunder, the truck had been sunlight on high chrome, the truck had been the deep-throated, shrieking bellow of an air horn, and that had been Saturday, that had been three days ago."
+      }
+    ]
+  },
+  {
+    "id": "sematary-09",
+    "question": "Where does Jud take Louis to bury Church after the cat is killed?",
+    "expected_answer": "The Micmac burial ground.",
+    "book_refs": [
+      "febee370a08c79626e848f916073b9c23d2ebed76f5976eee28b0dfc2f45bddd"
+    ],
+    "answer_notes": "The Micmac burial ground and the pet cemetery are distinct places. Naming only the pet cemetery is incorrect.",
+    "reference_evidence": [
+      {
+        "book_ref": "febee370a08c79626e848f916073b9c23d2ebed76f5976eee28b0dfc2f45bddd",
+        "chapter": 22,
+        "document_path": "OEBPS/Text/0743412273_Pet_Sematary_Chapter_22.html",
+        "text": "“This was their burying ground,” Jud said. “I brought you here so you could bury Ellie’s cat here. The Micmacs didn’t discriminate, you know. They buried their pets right alongside their owners.”"
+      },
+      {
+        "book_ref": "febee370a08c79626e848f916073b9c23d2ebed76f5976eee28b0dfc2f45bddd",
+        "chapter": 35,
+        "document_path": "OEBPS/Text/0743412273_Pet_Sematary_Chapter_35.html",
+        "text": "Behind the house, the field ended and the woods began—the woods that led first to the Pet Sematary and then to the Micmac burying ground beyond it."
+      }
+    ]
+  },
+  {
+    "id": "sematary-10",
+    "question": "Why does Jud have keys to the Creeds' house?",
+    "expected_answer": "The previous owners gave him a set.",
+    "book_refs": [
+      "febee370a08c79626e848f916073b9c23d2ebed76f5976eee28b0dfc2f45bddd"
+    ],
+    "reference_evidence": [
+      {
+        "book_ref": "febee370a08c79626e848f916073b9c23d2ebed76f5976eee28b0dfc2f45bddd",
+        "chapter": 3,
+        "document_path": "OEBPS/Text/0743412273_Pet_Sematary_Chapter_03.html",
+        "text": "“That’s okay,” Crandall said. “I got a set. Mr. and Mrs. Cleveland… they that lived here before you—gave me a set, oh, must have been fourteen, fifteen years ago."
+      }
+    ]
+  }
+]

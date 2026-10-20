@@ -1,0 +1,51 @@
+[project]
+name = "rag-library"
+version = "0.1.0"
+description = "A book catalog agent and EPUB RAG experiments"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.115.0,<1.0.0",
+    "langchain>=1.4.2",
+    "langchain-openai>=0.3.0,<1.0.0",
+    "langchain-text-splitters>=0.3.0,<1.0.0",
+    "beautifulsoup4>=4.12.0,<5.0.0",
+    "ebooklib>=0.18,<1.0",
+    "pgvector>=0.3.0,<1.0.0",
+    "psycopg[binary]>=3.2.0,<4.0.0",
+    "pydantic-settings>=2.0.0,<3.0.0",
+    "sqlalchemy>=2.0.0,<3.0.0",
+    "uvicorn[standard]>=0.30.0,<1.0.0",
+    "deepeval>=4.3.0",
+]
+
+[project.scripts]
+epub-ingestion-debug = "rag_library.cli.inspect_epub:main"
+
+[dependency-groups]
+dev = [
+    "ruff>=0.6.0,<1.0.0",
+]
+notebooks = [
+    "ipykernel>=6.29.0,<7.0.0",
+    "jupyterlab>=4.3.0,<5.0.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/rag_library"]
+
+[tool.ruff]
+line-length = 88
+target-version = "py312"
+exclude = [".venv", "*.ipynb"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
