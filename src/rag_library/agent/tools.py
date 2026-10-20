@@ -29,4 +29,11 @@ def answer_book_question(
     Book scope is supplied by the application. Supply only the question; do not
     choose book IDs, infer attachments, or add guessed answer terms.
     """
-    return asdict(ask_question(question, book_ids=runtime.context.book_ids))
+    return asdict(
+        ask_question(
+            question,
+            book_ids=runtime.context.book_ids,
+            method=runtime.context.retrieval_method,
+            candidate_limit=runtime.context.candidate_limit,
+        )
+    )

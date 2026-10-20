@@ -2,6 +2,7 @@
 
 from collections.abc import Sequence
 from dataclasses import dataclass
+from typing import Literal
 
 from langchain_openai import OpenAIEmbeddings
 from sqlalchemy import select
@@ -11,17 +12,23 @@ from rag_library.catalog import normalize_book_ids
 from rag_library.config import get_settings
 from rag_library.database import Book, BookChunk, create_database_engine
 
+RetrievalMethod = Literal["vector", "bm25", "hybrid"]
+
 
 @dataclass(frozen=True)
 class SearchResult:
-    """A matching chunk returned by semantic search."""
+    """A matching chunk with provenance and a method-specific raw score."""
 
     book_title: str
     chunk_index: int
     text: str
-    similarity: float
+    similarity: float | None
     chapter_number: int | None = None
     book_id: int | None = None
+    bm25_score: float | None = None
+    rrf_score: float | None = None
+    vector_rank: int | None = None
+    bm25_rank: int | None = None
 
 
 def semantic_search(
@@ -69,7 +76,7 @@ def semantic_search(
             )
             .join(Book, Book.id == BookChunk.book_id)
             .where(BookChunk.book_id.in_(selected_ids))
-            .order_by(distance)
+            .order_by(distance, Book.id, BookChunk.chunk_index, BookChunk.id)
             .limit(limit)
         )
         if chapters:

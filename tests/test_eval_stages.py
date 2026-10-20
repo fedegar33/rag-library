@@ -48,6 +48,33 @@ def judged(case_id, score):
 
 
 class EvalStageTests(unittest.TestCase):
+    @patch("rag_library.cli.eval.run_evaluation", return_value=[])
+    def test_generation_cli_passes_retrieval_options(self, generate):
+        for method, depth in [("hybrid", "30"), ("vector", None)]:
+            options = ["eval.py", "generate", "--method", method]
+            if depth:
+                options.extend(["--candidate-limit", depth])
+            with patch("sys.argv", options), contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(main(), 0)
+            self.assertEqual(generate.call_args.kwargs["retrieval_method"], method)
+            self.assertEqual(
+                generate.call_args.kwargs["candidate_limit"],
+                int(depth) if depth else None,
+            )
+
+    @patch("rag_library.cli.eval.run_evaluation")
+    def test_score_rejects_retrieval_override_instead_of_relabeling_answers(
+        self, generate
+    ):
+        with (
+            patch("sys.argv", ["eval.py", "score", "--method", "hybrid"]),
+            contextlib.redirect_stderr(io.StringIO()),
+            self.assertRaises(SystemExit) as error,
+        ):
+            main()
+        self.assertEqual(error.exception.code, 2)
+        generate.assert_not_called()
+
     @patch("rag_library.deepeval_evaluation.evaluate_cases")
     def test_scores_follow_ids_and_keep_failed_generation(self, evaluate):
         rows = [answer("one"), answer("two"), answer("failed", "Provider error")]

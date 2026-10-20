@@ -1,7 +1,7 @@
 # RAG Library API
 
 A Python book catalog agent exposed through FastAPI, with EPUB ingestion and
-semantic search CLI workflows. Managed with `uv`.
+vector, BM25, and hybrid search CLI workflows. Managed with `uv`.
 
 This is a learning and experimentation project for querying and analyzing books.
 Keep retrieval, chunking, persistence, prompts, and evaluation understandable,
@@ -16,7 +16,8 @@ LangChain components, and OpenAI embedding and chat models.
 - Python 3.12+
 - uv
 - PostgreSQL with the `pgvector` extension available for catalog and RAG workflows
-- An OpenAI API key for ingestion, search, answering, and evaluation
+- An OpenAI API key for ingestion, vector/hybrid search, answering, and evaluation;
+  catalog listing and BM25 search need only `DATABASE_URL`
 
 ## Setup
 
@@ -117,7 +118,7 @@ No ingestion or model calls are performed by `epub-ingestion-debug`.
 
 ## Search ingested books
 
-Run a semantic search against the stored chunks:
+Search stored chunks with vector retrieval (the default), BM25, or hybrid RRF:
 
 ```bash
 uv run python -m rag_library.cli.search "something" --book-id 1
@@ -125,20 +126,71 @@ uv run python -m rag_library.cli.search "something" --book-id 1 --limit 10
 uv run python -m rag_library.cli.search "something" --book-id 1 --verbose
 uv run python -m rag_library.cli.search "something" --book-id 1 --chapter 1,2,3
 uv run python -m rag_library.cli.search "something" --book-id 1 --limit 10 --verbose --chapter 1,2
+uv run python -m rag_library.cli.search "Church's full name" --book-id 1 --method bm25
+uv run python -m rag_library.cli.search "Church's full name" --book-id 1 --method vector
+uv run python -m rag_library.cli.search "burial ground" --book-id 1 --book-id 2 --method bm25 --limit 10 --verbose
+uv run python -m rag_library.cli.search "Church's full name" --book-id 1 --method hybrid --verbose
+uv run python -m rag_library.cli.search "burial ground" --book-id 1 --book-id 2 --method hybrid --candidate-limit 40 --limit 10
 ```
 
-Replace `1` with a current catalog ID from `cli.books`. Both `search` and `ask`
-require exactly one book. `--book-id` can be omitted only when the catalog has
-one book; an ambiguous or invalid selection fails without embedding calls.
-Use a content-only query: select the book with the argument instead of adding
-its title to the search text. Reusable `semantic_search()` and `ask_question()`
-require a nonempty keyword-only `book_ids` list; the CLI wraps its single
-selection in this list.
+Replace the example IDs with current catalog IDs from `cli.books`. Search accepts
+repeated `--book-id` arguments to attach several books and returns a pooled top-k
+across them. `ask` still selects exactly one book. `--book-id` can be omitted
+only when the catalog has one book; an ambiguous or invalid selection fails
+without embedding calls. Use a content-only query: select books with arguments
+instead of adding their titles to the search text. Reusable `semantic_search()`,
+`bm25_search()`, `hybrid_search()`, and `ask_question()` require explicit nonempty
+`book_ids` lists.
 
-Results are ordered by pgvector cosine similarity within the selected book. The default output shows
-compact previews; use `--verbose` to print each complete matching chunk.
+Vector results use pgvector cosine similarity. BM25 uses BM25S's Lucene variant
+with `k1=1.5`, `b=0.75`, lowercase tokens, English stopword removal, and no
+stemming. The initial tokenization policy is intended for English books and
+questions; it does not automatically adapt to book language metadata. BM25
+scores and cosine similarities have different scales and are not directly
+comparable. Compare returned evidence and ranks instead.
+
+BM25 loads only attached-book text and provenance, builds a fresh in-memory
+index on each invocation, and makes no embedding or chat calls. Existing chunks
+are sufficient: no schema migration, re-ingestion, or whole-book text field is
+needed. There is no saved index to synchronize after ingestion. Indexing cost
+grows with the attached corpus; persistent indexing is deferred.
+
+Output includes book ID, chapter, chunk index, a method-specific score, and a
+compact preview; `--verbose` includes the title and complete matching text.
 Use `--chapter` to restrict results to one or more 1-based EPUB document/chapter
-numbers.
+numbers. BM25 calculates term statistics over all chapters of the attached books,
+then applies chapter eligibility before selecting top-k. Unattached books never
+participate in scoring. Results with no lexical matches are omitted; queries
+containing only stopwords or punctuation return no matches. Blank queries fail.
+
+### Hybrid rank fusion
+
+`--method hybrid` retrieves candidates from both vector and BM25 search using the
+same query, attached books, and chapter restrictions. Each branch contributes up
+to 20 candidates by default, increasing to `--limit` when it exceeds 20. Override
+this depth with `--candidate-limit`, which is hybrid-only and must be positive
+and at least `--limit`. Candidate depth applies per branch across all attachments,
+not separately per book.
+
+Reciprocal rank fusion (RRF) adds `1 / (60 + rank)` for each branch containing a
+chunk, using ranks starting at 1 and equal contributions. It deduplicates by
+`(book_id, chunk_index)` and returns the final top `--limit`. Raw BM25 scores and
+cosine similarities do not enter the fusion formula. Ties use book ID and chunk
+index for repeatable ordering. RRF scores are not confidence probabilities.
+See the [original RRF paper](https://cormack.uwaterloo.ca/cormacksigir09-rrf.pdf).
+
+Compact output shows the RRF score and provenance. `--verbose` also shows each
+branch's rank, cosine similarity, BM25 score, and the complete text; `None` means
+the chunk was absent from that branch's candidate list. An empty branch is valid
+and the other branch's ranks still contribute. A branch error fails the command
+rather than silently returning partial results. Hybrid requires one query
+embedding request and builds the same temporary BM25 index; it generates no
+answer and changes no stored data.
+
+The agent and full-agent evaluation runner use hybrid retrieval by default.
+Direct `ask` remains vector by default and supports explicit method selection.
+Additional reranking, automated retrieval evidence metrics, and persistent lexical
+indexing remain deferred.
 
 ## Ask questions about ingested books
 
@@ -148,12 +200,16 @@ only that book context:
 ```bash
 uv run python -m rag_library.cli.ask "Who is Nicolas?" --book-id 1
 uv run python -m rag_library.cli.ask "Who is Nicolas?" --book-id 1 --top-k 8
+uv run python -m rag_library.cli.ask "Who is Nicolas?" --book-id 1 --method hybrid --candidate-limit 20
 ```
 
 Set `OPENAI_CHAT_MODEL` to choose the chat model; it defaults to
 `gpt-4o-mini`. The command prints the generated answer and the source chunks
 used to produce it. Use `--top-k` to control how many chunks are supplied as
-context; it defaults to 5.
+context; it defaults to 5. `--method vector|bm25|hybrid` selects retrieval;
+`--candidate-limit` is hybrid-only and must be at least `--top-k` when supplied.
+Answer system instructions are shared across methods. Hybrid context and source
+output label RRF scores explicitly instead of treating them as cosine similarity.
 
 ## Book agent
 
@@ -172,6 +228,11 @@ Choose current IDs through `GET /books` (or `uv run python -m rag_library.cli.bo
 That catalog includes each book's `content_sha256`. The API requires one or more
 positive integer IDs in every request and validates all attachments before
 initializing the agent. Missing, empty, or unknown IDs return HTTP 422.
+The answer tool uses hybrid retrieval by default: 20 candidates per branch,
+equal-contribution RRF with constant 60, and five final passages. Retrieval method
+and depth belong to `AgentContext`, alongside book attachments; the model cannot
+select them. Notebook callers can set `retrieval_method="vector"` or `"bm25"`
+when constructing a context, or set `candidate_limit` for hybrid experiments.
 The caller keeps the selected IDs between requests; the backend does not persist
 chats or attachment state.
 
@@ -255,6 +316,8 @@ each Python package also contains `__init__.py`):
 │       │   └── pipeline.py
 │       └── rag/
 │           ├── answering.py
+│           ├── hybrid_search.py
+│           ├── keyword_search.py
 │           ├── retriever.py
 │           └── search.py
 ├── docs/
@@ -273,7 +336,9 @@ each Python package also contains `__init__.py`):
     ├── test_deepeval_evaluation.py
     ├── test_epub_ingestion.py
     ├── test_eval_stages.py
-    └── test_evaluation.py
+    ├── test_evaluation.py
+    ├── test_hybrid_search.py
+    └── test_keyword_search.py
 ```
 
 
@@ -296,6 +361,18 @@ configured, run from the repository root:
 uv run python eval.py
 ```
 
+Generation now uses hybrid retrieval by default. Save separate snapshots for
+comparison with vector-only retrieval:
+
+```bash
+uv run python eval.py all --method hybrid --candidate-limit 20 --output evals/results/hybrid/answers.json
+uv run python eval.py all --method vector --output evals/results/vector/answers.json
+```
+
+`--method bm25` is also available. Final context remains five passages; hybrid
+candidate depth defaults to 20 per method and explicit depths must be at least
+five. The dataset, system instructions, and judge rubric are unchanged.
+
 The runner reads `evals/basic.json`: ten English questions about Pet Sematary.
 It calls the full agent independently for each question, including tool selection
 and query rewriting, then passes the entire batch to DeepEval’s `evaluate()`
@@ -309,11 +386,13 @@ the eval references. A different EPUB edition or modified file has another hash.
 Before each invocation, references resolve to current IDs; missing references
 fail that case explicitly. Questions contain only the content question.
 
-Generated answers save `book_refs`, resolved `book_ids`, and `attached_books`
-metadata. The same fields enter DeepEval case metadata, alongside tool records.
+Generated answers save `book_refs`, resolved `book_ids`, `attached_books`, and
+`retrieval` settings (method, final top-k, effective candidate depth, RRF constant).
+The same fields enter DeepEval case metadata, alongside tool records containing
+source scores and branch ranks.
 Rescoring uses the saved answers and scope without resolving or retrieving again;
-older answer files remain scoreable but do not acquire missing attachment metadata.
-Regenerate answers to evaluate the new attachment behavior.
+Older answer files remain scoreable but do not acquire missing attachment or
+retrieval metadata. Regenerate answers to evaluate a changed retrieval method.
 
 Each response becomes an `LLMTestCase`: the original question is `input`, the
 expected answer is `expected_output`, the final agent answer is `actual_output`,
@@ -408,6 +487,8 @@ uv run python eval.py score
 DeepEval prints its own evaluation summary after scoring. To re-score
 an unchanged RAG run with a different judge, change `EVAL_JUDGE_MODEL` and run
 only `score`; it does not call the agent or retrieve again.
+Score-only rejects `--method` and `--candidate-limit`; it uses the saved retrieval
+metadata and passages rather than changing or relabeling them.
 
 | File | Contents |
 | --- | --- |

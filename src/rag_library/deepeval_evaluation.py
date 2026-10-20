@@ -35,6 +35,7 @@ def build_test_case(case: dict, response: AgentResult) -> LLMTestCase:
         retrieval_context=get_retrieval_context(response),
         metadata={
             "tool_calls": [asdict(call) for call in response.tool_calls],
+            **({"retrieval": case["retrieval"]} if "retrieval" in case else {}),
             **{
                 key: case.get(key, [])
                 for key in ("book_refs", "book_ids", "attached_books")

@@ -17,6 +17,7 @@ dependencies = [
     "sqlalchemy>=2.0.0,<3.0.0",
     "uvicorn[standard]>=0.30.0,<1.0.0",
     "deepeval>=4.3.0",
+    "bm25s>=0.3.14,<0.4",
 ]
 
 [project.scripts]

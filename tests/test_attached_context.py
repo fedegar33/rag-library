@@ -16,6 +16,7 @@ from rag_library.agent.tools import answer_book_question, list_books
 from rag_library.catalog import get_books_by_refs
 from rag_library.main import app
 from rag_library.rag.answering import AskResponse
+from rag_library.rag.search import SearchResult
 
 
 def book(book_id=7):
@@ -81,6 +82,90 @@ class AttachedContextTests(unittest.TestCase):
         )
         schema = answer_book_question.tool_call_schema.model_json_schema()
         self.assertEqual(set(schema["properties"]), {"question"})
+
+    @patch("rag_library.rag.answering.get_settings")
+    @patch("rag_library.rag.answering.ChatOpenAI")
+    @patch("rag_library.rag.retriever.hybrid_search")
+    def test_agent_uses_hybrid_and_preserves_lexical_only_source(
+        self, search, chat, settings
+    ):
+        search.return_value = [
+            SearchResult(
+                "Book",
+                4,
+                "Ludlow is the destination.",
+                None,
+                1,
+                7,
+                bm25_score=2.0,
+                rrf_score=1 / 61,
+                bm25_rank=1,
+            )
+        ]
+        settings.return_value = SimpleNamespace(
+            openai_chat_model="unused", openai_api_key="unused"
+        )
+        chat.return_value.invoke.return_value = SimpleNamespace(content="Ludlow")
+        agent = build_agent(
+            ScriptedModel(
+                responses=[
+                    AIMessage(
+                        content="",
+                        tool_calls=[
+                            dict(
+                                name="answer_book_question",
+                                args={"question": "Where?"},
+                                id="one",
+                            )
+                        ],
+                    ),
+                    AIMessage(content='{"answer":"Ludlow"}'),
+                ]
+            )
+        )
+        result = run_agent(
+            agent, "Where?", context=AgentContext((book(),), candidate_limit=30)
+        )
+        search.assert_called_once_with(
+            "Where?", limit=5, book_ids=[7], candidate_limit=30
+        )
+        self.assertEqual(result.answer, "Ludlow")
+        source = result.tool_calls[0].result["sources"][0]
+        self.assertEqual(source["book_id"], 7)
+        self.assertEqual(source["bm25_rank"], 1)
+        self.assertEqual(source["bm25_score"], 2.0)
+        self.assertAlmostEqual(source["rrf_score"], 1 / 61)
+        self.assertIsNone(source["similarity"])
+        messages = chat.return_value.invoke.call_args.args[0].to_messages()
+        self.assertIn("RRF score: 0.016393", messages[1].content)
+        self.assertIn("Ludlow is the destination.", messages[1].content)
+
+    @patch(
+        "rag_library.agent.tools.ask_question", return_value=AskResponse("Answer", [])
+    )
+    def test_agent_can_explicitly_use_vector_for_comparison(self, ask):
+        answer_book_question.func(
+            question="Where?",
+            runtime=SimpleNamespace(
+                context=AgentContext((book(),), retrieval_method="vector")
+            ),
+        )
+        ask.assert_called_once_with(
+            "Where?", book_ids=[7], method="vector", candidate_limit=None
+        )
+
+    def test_invalid_retrieval_configuration_rejected_before_agent_execution(self):
+        for method, depth in [
+            ("invalid", None),
+            ("vector", 20),
+            ("hybrid", 4),
+            ("hybrid", True),
+        ]:
+            with (
+                self.subTest(method=method, depth=depth),
+                self.assertRaises(ValueError),
+            ):
+                AgentContext((book(),), retrieval_method=method, candidate_limit=depth)
 
     @patch("rag_library.catalog.list_books")
     def test_refs_resolve_after_numeric_ids_change_and_missing_refs_fail(self, catalog):

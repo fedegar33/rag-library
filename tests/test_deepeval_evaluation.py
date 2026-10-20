@@ -47,6 +47,12 @@ class DeepEvalTests(unittest.TestCase):
             "book_refs": ["a" * 64],
             "book_ids": [7],
             "attached_books": [{"id": 7, "title": "Book"}],
+            "retrieval": {
+                "method": "hybrid",
+                "top_k": 5,
+                "candidate_limit": 20,
+                "rrf_constant": 60,
+            },
         }
         result = build_test_case(case, AgentResult("Final", calls))
         self.assertEqual(result.name, "one")
@@ -55,7 +61,7 @@ class DeepEvalTests(unittest.TestCase):
         self.assertEqual(result.actual_output, "Final")
         self.assertEqual(result.retrieval_context, ["A", "B", "A"])
         self.assertEqual(result.metadata["tool_calls"][1]["result"]["sources"], sources)
-        for key in ("book_refs", "book_ids", "attached_books"):
+        for key in ("book_refs", "book_ids", "attached_books", "retrieval"):
             self.assertEqual(result.metadata[key], case[key])
         self.assertIsNone(result.context)
 

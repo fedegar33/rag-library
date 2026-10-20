@@ -21,11 +21,33 @@ def main() -> int:
         default=5,
         help="Number of book chunks to retrieve (default: 5)",
     )
+    parser.add_argument(
+        "--method",
+        choices=["vector", "bm25", "hybrid"],
+        default="vector",
+        help="Retrieval method (default: vector; agent/evals default to hybrid)",
+    )
+    parser.add_argument(
+        "--candidate-limit",
+        type=int,
+        help="Hybrid candidates per method (default: max(20, --top-k))",
+    )
     args = parser.parse_args()
+    if args.candidate_limit is not None:
+        if args.method != "hybrid" or args.candidate_limit < max(1, args.top_k):
+            parser.error(
+                "--candidate-limit requires hybrid and must be at least --top-k"
+            )
 
     try:
         book_id = resolve_book_id(args.book_id)
-        response = ask_question(args.question, args.top_k, book_ids=[book_id])
+        response = ask_question(
+            args.question,
+            args.top_k,
+            book_ids=[book_id],
+            method=args.method,
+            candidate_limit=args.candidate_limit,
+        )
     except Exception as error:
         print(f"Ask failed: {error}", file=sys.stderr)
         return 1
@@ -37,9 +59,15 @@ def main() -> int:
     if response.sources:
         for source in response.sources:
             chapter = source.chapter_number or "?"
+            if source.rrf_score is not None:
+                score = f"RRF score {source.rrf_score:.6f}"
+            elif source.bm25_score is not None:
+                score = f"BM25 score {source.bm25_score:.4f}"
+            else:
+                score = f"relevance {source.similarity:.4f}"
             print(
                 f"- {source.book_title} (book {source.book_id}), chapter {chapter}, "
-                f"chunk {source.chunk_index}, relevance {source.similarity:.4f}"
+                f"chunk {source.chunk_index}, {score}"
             )
     else:
         print("- None")

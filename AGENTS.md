@@ -32,6 +32,9 @@ uv run epub-ingestion-debug "./book.epub" --show-excluded
 uv run python -m rag_library.cli.books
 uv run python -m rag_library.cli.search "query" --book-id 1
 uv run python -m rag_library.cli.search "query" --book-id 1 --limit 10 --verbose --chapter 1,2
+uv run python -m rag_library.cli.search "query" --book-id 1 --method bm25
+uv run python -m rag_library.cli.search "query" --book-id 1 --book-id 2 --method vector
+uv run python -m rag_library.cli.search "query" --book-id 1 --method hybrid --candidate-limit 20 --limit 5 --verbose
 uv run python -m rag_library.cli.ask "question" --book-id 1
 uv run python -m rag_library.cli.ask "question" --book-id 1 --top-k 8
 ```
@@ -46,6 +49,8 @@ uv run python eval.py score
 uv run python eval.py --manual
 uv run python eval.py all --dataset evals/basic.json --output evals/results/baseline/answers.json --results-folder evals/results --max-concurrent 2
 uv run python eval.py score --output evals/results/baseline/answers.json
+uv run python eval.py all --method hybrid --candidate-limit 20 --output evals/results/hybrid/answers.json
+uv run python eval.py all --method vector --output evals/results/vector/answers.json
 uv run deepeval inspect --list
 uv run deepeval inspect --run-id 1
 ```
@@ -67,6 +72,9 @@ uv run ruff format --check .
 - FastAPI service scaffold
 - SQLAlchemy 2.x and PostgreSQL
 - pgvector for 1536-dimensional OpenAI embeddings
+- BM25S for in-memory lexical retrieval over stored chunks
+- Hybrid retrieval with equal-contribution reciprocal rank fusion (RRF), used by
+  the agent and evaluations by default
 - LangChain components for document splitting, retrieval integration, prompts,
   model calls, and a stateless catalog agent
 - OpenAI embeddings and chat models
@@ -122,6 +130,8 @@ each Python package also contains `__init__.py`):
 │       │   └── pipeline.py
 │       └── rag/
 │           ├── answering.py
+│           ├── hybrid_search.py     # Vector/BM25 candidates and RRF
+│           ├── keyword_search.py    # In-memory BM25 retrieval
 │           ├── retriever.py
 │           └── search.py
 ├── docs/
@@ -140,7 +150,9 @@ each Python package also contains `__init__.py`):
     ├── test_deepeval_evaluation.py
     ├── test_epub_ingestion.py
     ├── test_eval_stages.py
-    └── test_evaluation.py
+    ├── test_evaluation.py
+    ├── test_hybrid_search.py
+    └── test_keyword_search.py
 ```
 
 Each subpackage has an `__init__.py`. Notebooks live in `notebooks/` and import
@@ -170,6 +182,27 @@ each source's book ID. The agent's `list_books` tool exposes only attachments;
 Eval cases use nonempty `book_refs` lists of exact EPUB `content_sha256` values,
 resolved to current numeric IDs at generation time and saved with answers.
 Direct `ask`/`search` commands can omit `--book-id` only for a singleton catalog.
+Search accepts repeated `--book-id` arguments and `--method vector|bm25|hybrid`
+(default vector). BM25 builds a fresh index over the attached books together, using
+English stopwords, lowercase tokens, and no stemming. Chapter filtering happens
+before top-k without changing the attachment-wide statistics. Preserve distinct
+BM25 scores, vector similarities, and RRF scores. Catalog/BM25 need only database
+settings; vector/hybrid and model workflows still require OpenAI credentials.
+Hybrid retrieves max(20, final limit) candidates per branch by default, with an
+explicit `--candidate-limit` override at least as large as the final limit. RRF
+uses equal contributions, one-based ranks, constant 60, and identity
+`(book_id, chunk_index)`. Keep branch ranks/raw scores for verbose inspection;
+empty branches are valid but branch failures must propagate. AgentContext owns
+the retrieval method and candidate depth, defaulting to hybrid; the model still
+supplies only the content question. Agents return five fused passages by default.
+Eval generation accepts `--method vector|bm25|hybrid` (default hybrid) and optional
+`--candidate-limit` (hybrid only, at least 5). Save effective retrieval settings
+in answer rows and DeepEval metadata. Score-only reads frozen answers and rejects
+retrieval overrides; do not infer a method for historical rows without metadata.
+Direct `ask`/`ask_question`/`BookRetriever` remain vector by default and support
+explicit method selection; CLI `ask` also accepts `--candidate-limit` for hybrid.
+Reranking, automated retrieval evidence metrics, and persistent lexical indexing
+remain deferred.
 Unnumbered story sections are retained unless positively identified as auxiliary.
 
 ## Technology principles

@@ -7,7 +7,7 @@ from typing import TypedDict
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from rag_library.config import get_settings
+from rag_library.config import get_database_settings
 from rag_library.database import Book, create_database_engine
 
 
@@ -21,7 +21,7 @@ class CatalogBook(TypedDict):
 
 def list_books() -> list[CatalogBook]:
     """Return all ingested books in title and ID order, without loading passages."""
-    engine = create_database_engine(get_settings().database_url)
+    engine = create_database_engine(get_database_settings().database_url)
     try:
         with Session(engine) as session:
             rows = session.execute(

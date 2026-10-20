@@ -61,3 +61,68 @@ uv run python eval.py
 The normal command replaces `basic_result.json` with new generated answers and
 records a new scored run through DeepEval. Rescoring the old intermediate file
 would still evaluate the old questions and answers.
+
+## Compare retrieval manually
+
+The search CLI can compare vector, BM25, and hybrid results without generating answers:
+
+```bash
+uv run python -m rag_library.cli.search "What is Church's full name?" --book-id 1 --method vector --limit 10 --verbose
+uv run python -m rag_library.cli.search "What is Church's full name?" --book-id 1 --method bm25 --limit 10 --verbose
+uv run python -m rag_library.cli.search "What is Church's full name?" --book-id 1 --method hybrid --candidate-limit 20 --limit 10 --verbose
+```
+
+Replace `1` with the current ID for the exact EPUB in the case's `book_refs`.
+Use the same query, attachments, chapter filters, and limit for both methods.
+Inspect whether returned text contains `reference_evidence` at top 5, 10, and 20;
+compare source passages and ranking rather than raw scores. Hybrid pools up to
+20 candidates per branch by default (at least the final limit), then fuses ranks
+using equal-contribution RRF with constant 60. Its verbose output preserves both
+branch ranks and scores so consensus and single-branch hits can be inspected.
+Candidate depth can affect the fused ranking: record `--candidate-limit` and
+keep it fixed when comparing final top-k cutoffs. Single-method `--limit 20`
+shows each branch's candidate list for hybrid depth 20. Chunk boundaries can
+split an annotated excerpt, so a substring miss alone does not prove evidence
+is absent. Keep gold evidence out of search queries and runtime context.
+
+BM25 indexes existing chunks in memory over the attached books together, using
+lowercase English tokens, English stopwords, and no stemming. It uses no model
+calls; vector and hybrid each make a query embedding request. Automated retrieval
+evidence metrics and additional reranking are deferred.
+
+## Compare agent answers with hybrid retrieval
+
+The agent and evaluation generation now default to hybrid retrieval: up to 20
+candidates from each method, equal-contribution RRF with constant 60, and five
+final passages supplied to the answer model. The model chooses only the content
+question; attachments and retrieval settings are application-owned.
+
+Save comparison runs to separate answer files:
+
+```bash
+uv run python eval.py all --method hybrid --candidate-limit 20 --output evals/results/hybrid/answers.json
+uv run python eval.py all --method vector --output evals/results/vector/answers.json
+```
+
+`--method bm25` is also supported. `--candidate-limit` applies only to hybrid and
+must be at least five. Changing candidate depth is a separate experiment; keep
+the dataset, model, judge, and final passage count fixed for retrieval comparisons.
+System instructions and scoring rubrics are unchanged; context headers identify
+the applicable score type instead of treating RRF scores as cosine similarities.
+
+Each new answer row records `retrieval.method`, `top_k`, effective
+`candidate_limit`, and `rrf_constant`. Source records preserve original scores
+and branch ranks. DeepEval metadata copies the saved retrieval settings; judge
+retrieval context still contains only passages actually supplied at runtime.
+Historical results without retrieval settings remain readable and are not
+retroactively labeled.
+
+To rescore hybrid answers without running retrieval or the agent again:
+
+```bash
+uv run python eval.py score --output evals/results/hybrid/answers.json
+```
+
+Score-only rejects `--method` and `--candidate-limit` because it uses frozen
+answers. The default `uv run python eval.py` now generates hybrid answers and
+replaces `basic_result.json`; use distinct output files to retain comparisons.

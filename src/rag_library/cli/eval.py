@@ -5,6 +5,7 @@ import sys
 from pathlib import Path
 from time import perf_counter
 
+from rag_library.agent.context import validate_retrieval_options
 from rag_library.deepeval_evaluation import score_results
 from rag_library.evaluation import EvaluationProgress, load_cases, run_evaluation
 
@@ -41,6 +42,16 @@ def main() -> int:
     parser.add_argument("--results-folder", type=Path, default=Path("evals/results"))
     parser.add_argument("--max-concurrent", type=int, default=20)
     parser.add_argument("--manual", action="store_true", help="Alias for generate")
+    parser.add_argument(
+        "--method",
+        choices=["vector", "bm25", "hybrid"],
+        help="Answer retrieval method for generation (default: hybrid)",
+    )
+    parser.add_argument(
+        "--candidate-limit",
+        type=int,
+        help="Hybrid candidates per method (default: 20; at least 5)",
+    )
     args = parser.parse_args()
     if args.max_concurrent < 1:
         parser.error("--max-concurrent must be greater than zero")
@@ -48,14 +59,34 @@ def main() -> int:
         parser.error("--manual cannot be combined with score")
     if args.manual:
         args.stage = "generate"
+    if args.stage == "score" and (
+        args.method is not None or args.candidate_limit is not None
+    ):
+        parser.error(
+            "Retrieval options apply only to generation; score uses saved answers"
+        )
+    try:
+        validate_retrieval_options(args.method or "hybrid", args.candidate_limit)
+    except ValueError as error:
+        parser.error(str(error))
     paths = [args.dataset, args.output]
     if len({path.resolve() for path in paths}) != len(paths):
         parser.error("Dataset and answers must use separate files")
 
     if args.stage in ("all", "generate"):
-        print(f"Loading {args.dataset} and initializing the agent...", flush=True)
+        method = args.method or "hybrid"
+        print(
+            f"Loading {args.dataset} and initializing the agent ({method})...",
+            flush=True,
+        )
         started = perf_counter()
-        rows = run_evaluation(args.dataset, args.output, on_progress=_print_progress)
+        rows = run_evaluation(
+            args.dataset,
+            args.output,
+            on_progress=_print_progress,
+            retrieval_method=method,
+            candidate_limit=args.candidate_limit,
+        )
         failures = sum(row["error"] is not None for row in rows)
         print(
             f"\nSaved {len(rows)} answers to {args.output} "

@@ -75,6 +75,16 @@ class EvaluationTests(unittest.TestCase):
         self.assertEqual(results[0]["book_ids"], [7])
         self.assertEqual(results[0]["book_refs"], ["a" * 64])
         self.assertEqual(results[0]["attached_books"], [self.book])
+        self.assertEqual(
+            results[0]["retrieval"],
+            {
+                "method": "hybrid",
+                "top_k": 5,
+                "candidate_limit": 20,
+                "rrf_constant": 60,
+            },
+        )
+        self.assertEqual(run.call_args.kwargs["context"].retrieval_method, "hybrid")
 
     @patch("rag_library.evaluation.get_agent")
     @patch("rag_library.evaluation.run_agent")
@@ -120,6 +130,29 @@ class EvaluationTests(unittest.TestCase):
             run_evaluation(self.dataset, self.dataset)
 
     @patch("rag_library.evaluation.get_agent")
+    @patch("rag_library.evaluation.run_agent", return_value=AgentResult("Answer", []))
+    def test_vector_override_is_recorded_in_saved_answers_and_context(self, run, get):
+        rows = run_evaluation(self.dataset, self.output, retrieval_method="vector")
+        self.assertEqual(run.call_args.kwargs["context"].retrieval_method, "vector")
+        self.assertEqual(
+            rows[0]["retrieval"],
+            {
+                "method": "vector",
+                "top_k": 5,
+                "candidate_limit": None,
+                "rrf_constant": None,
+            },
+        )
+
+    @patch("rag_library.evaluation.get_agent")
+    def test_invalid_retrieval_options_preserve_existing_output(self, get):
+        self.output.write_text("preserve this")
+        with self.assertRaises(ValueError):
+            run_evaluation(self.dataset, self.output, candidate_limit=4)
+        get.assert_not_called()
+        self.assertEqual(self.output.read_text(), "preserve this")
+
+    @patch("rag_library.evaluation.get_agent")
     def test_duplicate_ids_fail_before_agent_calls(self, get):
         self.cases[1]["id"] = "one"
         self.dataset.write_text(json.dumps(self.cases))
@@ -137,7 +170,12 @@ class EvaluationTests(unittest.TestCase):
             question="¿Dónde viven los Creed?",
             runtime=SimpleNamespace(context=AgentContext((self.book,))),
         )
-        ask.assert_called_once_with("¿Dónde viven los Creed?", book_ids=[7])
+        ask.assert_called_once_with(
+            "¿Dónde viven los Creed?",
+            book_ids=[7],
+            method="hybrid",
+            candidate_limit=None,
+        )
         self.assertEqual(result["answer"], "En Ludlow.")
         self.assertEqual(result["sources"][0]["chapter_number"], 1)
         self.assertEqual(result["sources"][0]["chunk_index"], 4)

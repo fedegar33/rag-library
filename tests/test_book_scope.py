@@ -95,7 +95,9 @@ class BookScopeTests(unittest.TestCase):
     def test_answering_always_constructs_scoped_retriever(self, model, retriever):
         retriever.return_value.invoke.return_value = []
         self.assertEqual(ask_question("Question", book_ids=[7]).sources, [])
-        retriever.assert_called_once_with(k=5, book_ids=[7])
+        retriever.assert_called_once_with(
+            k=5, book_ids=[7], method="vector", candidate_limit=None
+        )
         model.assert_not_called()
 
     @patch("rag_library.cli.ask.resolve_book_id", return_value=7)
@@ -104,7 +106,9 @@ class BookScopeTests(unittest.TestCase):
         with patch("sys.argv", ["ask", "Question"]), redirect_stdout(io.StringIO()):
             self.assertEqual(ask_main(), 0)
         resolve.assert_called_once_with(None)
-        ask.assert_called_once_with("Question", 5, book_ids=[7])
+        ask.assert_called_once_with(
+            "Question", 5, book_ids=[7], method="vector", candidate_limit=None
+        )
 
     @patch("rag_library.cli.search.resolve_book_id", return_value=8)
     @patch("rag_library.cli.search.semantic_search", return_value=[])

@@ -7,9 +7,11 @@ from pathlib import Path
 from time import perf_counter
 
 from rag_library.agent.agent import get_agent, run_agent
-from rag_library.agent.context import AgentContext
+from rag_library.agent.context import AgentContext, validate_retrieval_options
 from rag_library.agent.models import AgentResult
 from rag_library.catalog import get_books_by_refs, validate_book_refs
+from rag_library.rag.hybrid_search import DEFAULT_CANDIDATE_LIMIT, RRF_CONSTANT
+from rag_library.rag.search import RetrievalMethod
 
 
 @dataclass(frozen=True)
@@ -57,6 +59,8 @@ def run_evaluation(
     output_path: Path,
     *,
     on_progress: Callable[[EvaluationProgress], None] | None = None,
+    retrieval_method: RetrievalMethod = "hybrid",
+    candidate_limit: int | None = None,
 ) -> list[dict]:
     """Run a fresh manual evaluation, saving completed cases after each question.
 
@@ -65,6 +69,7 @@ def run_evaluation(
     replaces the previous output, without modifying the source question set.
     """
     dataset_path = Path(dataset_path)
+    validate_retrieval_options(retrieval_method, candidate_limit)
     output_path = Path(output_path)
     if dataset_path.resolve() == output_path.resolve():
         raise ValueError("Results must be saved separately from the question set")
@@ -88,9 +93,21 @@ def run_evaluation(
             error=None,
             book_ids=[],
             attached_books=[],
+            retrieval={
+                "method": retrieval_method,
+                "top_k": 5,
+                "candidate_limit": (candidate_limit or DEFAULT_CANDIDATE_LIMIT)
+                if retrieval_method == "hybrid"
+                else None,
+                "rrf_constant": RRF_CONSTANT if retrieval_method == "hybrid" else None,
+            },
         )
         try:
-            context = AgentContext(books=tuple(get_books_by_refs(case["book_refs"])))
+            context = AgentContext(
+                books=tuple(get_books_by_refs(case["book_refs"])),
+                retrieval_method=retrieval_method,
+                candidate_limit=candidate_limit,
+            )
             row["book_ids"] = context.book_ids
             row["attached_books"] = list(context.books)
             response = run_agent(agent, case["question"], context=context)
