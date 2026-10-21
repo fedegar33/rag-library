@@ -60,13 +60,36 @@ def build_metrics() -> list:
         FaithfulnessMetric(**options, include_reason=True),
         GEval(
             name="Answer Correctness",
-            criteria=(
-                "Evaluate whether the actual output correctly answers the input "
-                "according to the expected output. Accept equivalent English "
-                "wording and concise paraphrases. Penalize contradictions, "
-                "missing essential facts, or an unsupported refusal. Do not "
-                "require facts beyond the expected output."
-            ),
+            evaluation_steps=[
+                "Read the input to identify the requested facts. Treat the expected "
+                "output as the minimum required factual content, not a required "
+                "response format or an exhaustive list of permissible details.",
+                "Compare the actual output with the expected output for factual "
+                "agreement. Accept semantically equivalent wording and unambiguous "
+                "name variants; do not require a verbatim match.",
+                "Do not deduct points solely for answer length, complete sentences, "
+                "citations, or additional information absent from the expected "
+                "output. A correctly answered question should receive a high score "
+                "when the additional wording does not contradict the required facts.",
+                "Penalize missing requested facts, wrong requested facts, and "
+                "contradictory or incompatible alternatives, even if the correct "
+                "answer also appears somewhere in the actual output. Preserve "
+                "essential distinctions such as entity, relationship, location, "
+                "time, and a proposed event versus an actual event.",
+                "If the expected output explicitly says the information is not "
+                "specified or unavailable, accept an equivalent abstention that "
+                "does not invent the missing detail. If the expected output "
+                "provides an answer, an abstention omits the requested fact and "
+                "must be penalized.",
+                "Use only the input, expected output, and actual output for this "
+                "judgment. Do not assume extra claims are false merely because "
+                "the expected output omits them, and do not use outside knowledge "
+                "to verify them. Support from retrieved passages is assessed "
+                "separately by Faithfulness.",
+                "Explain the score in terms of factual agreement, omissions, or "
+                "contradictions. Do not justify deductions using verbosity, style, "
+                "or failure to copy the expected answer's wording.",
+            ],
             evaluation_params=[
                 SingleTurnParams.INPUT,
                 SingleTurnParams.ACTUAL_OUTPUT,

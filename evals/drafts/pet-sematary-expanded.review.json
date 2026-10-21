@@ -1,0 +1,611 @@
+[
+  {
+    "id": "sematary-01",
+    "question": "Which town does the Creed family move to?",
+    "expected_answer": "Ludlow.",
+    "book_refs": [
+      "febee370a08c79626e848f916073b9c23d2ebed76f5976eee28b0dfc2f45bddd"
+    ],
+    "reference_evidence": [
+      {
+        "book_ref": "febee370a08c79626e848f916073b9c23d2ebed76f5976eee28b0dfc2f45bddd",
+        "chapter": 1,
+        "document_path": "OEBPS/Text/0743412273_Pet_Sematary_Chapter_01.html",
+        "text": "“Louis Creed, who had lost his father at three and who had never known a grandfather, never expected to find a father as he entered his middle age, but that was exactly what happened… although he called this man a friend, as a grown man must do when he finds the man who should have been his father relatively late in life. He met this man on the evening he and his wife and his two children moved into the big white frame house in Ludlow.”"
+      }
+    ],
+    "answerable": true,
+    "category": "existing_regression",
+    "review_status": "previously_audited"
+  },
+  {
+    "id": "sematary-02",
+    "question": "Which city does the Creed family move from?",
+    "expected_answer": "Chicago.",
+    "book_refs": [
+      "febee370a08c79626e848f916073b9c23d2ebed76f5976eee28b0dfc2f45bddd"
+    ],
+    "reference_evidence": [
+      {
+        "book_ref": "febee370a08c79626e848f916073b9c23d2ebed76f5976eee28b0dfc2f45bddd",
+        "chapter": 1,
+        "document_path": "OEBPS/Text/0743412273_Pet_Sematary_Chapter_01.html",
+        "text": "Rachel, still not entirely sure about this move to Maine from Chicago, where she had lived her whole life, burst into tears."
+      }
+    ],
+    "answerable": true,
+    "category": "existing_regression",
+    "review_status": "previously_audited"
+  },
+  {
+    "id": "sematary-03",
+    "question": "What is Louis Creed's wife's first name?",
+    "expected_answer": "Rachel.",
+    "book_refs": [
+      "febee370a08c79626e848f916073b9c23d2ebed76f5976eee28b0dfc2f45bddd"
+    ],
+    "reference_evidence": [
+      {
+        "book_ref": "febee370a08c79626e848f916073b9c23d2ebed76f5976eee28b0dfc2f45bddd",
+        "chapter": 3,
+        "document_path": "OEBPS/Text/0743412273_Pet_Sematary_Chapter_03.html",
+        "text": "Yes. Louis Creed. This is my wife Rachel, my daughter Ellie, and the kid with the bee sting is Gage."
+      }
+    ],
+    "answerable": true,
+    "category": "existing_regression",
+    "review_status": "previously_audited"
+  },
+  {
+    "id": "sematary-04",
+    "question": "What is the name of the bull buried in the Micmac burial ground?",
+    "expected_answer": "Hanratty.",
+    "book_refs": [
+      "febee370a08c79626e848f916073b9c23d2ebed76f5976eee28b0dfc2f45bddd"
+    ],
+    "reference_evidence": [
+      {
+        "book_ref": "febee370a08c79626e848f916073b9c23d2ebed76f5976eee28b0dfc2f45bddd",
+        "chapter": 24,
+        "document_path": "OEBPS/Text/0743412273_Pet_Sematary_Chapter_24.html",
+        "text": "Old Zack McGovern, who used to live out on Stackpole Road, buried his prize bull Hanratty in the Micmac burying ground back in 1967 or ’68."
+      }
+    ],
+    "answerable": true,
+    "category": "existing_regression",
+    "review_status": "previously_audited"
+  },
+  {
+    "id": "sematary-05",
+    "question": "What is Church the cat's full name?",
+    "expected_answer": "Winston Churchill.",
+    "book_refs": [
+      "febee370a08c79626e848f916073b9c23d2ebed76f5976eee28b0dfc2f45bddd"
+    ],
+    "reference_evidence": [
+      {
+        "book_ref": "febee370a08c79626e848f916073b9c23d2ebed76f5976eee28b0dfc2f45bddd",
+        "chapter": 1,
+        "document_path": "OEBPS/Text/0743412273_Pet_Sematary_Chapter_01.html",
+        "text": "Winston Churchill moved in with them. Church was his daughter Eileen’s cat."
+      }
+    ],
+    "answerable": true,
+    "category": "existing_regression",
+    "review_status": "previously_audited"
+  },
+  {
+    "id": "sematary-06",
+    "question": "Which of Louis's children owns Church the cat?",
+    "expected_answer": "Ellie.",
+    "book_refs": [
+      "febee370a08c79626e848f916073b9c23d2ebed76f5976eee28b0dfc2f45bddd"
+    ],
+    "answer_notes": "Ellie and Eileen name the same child. Either name is acceptable; no surname is required.",
+    "reference_evidence": [
+      {
+        "book_ref": "febee370a08c79626e848f916073b9c23d2ebed76f5976eee28b0dfc2f45bddd",
+        "chapter": 1,
+        "document_path": "OEBPS/Text/0743412273_Pet_Sematary_Chapter_01.html",
+        "text": "Winston Churchill moved in with them. Church was his daughter Eileen’s cat."
+      }
+    ],
+    "answerable": true,
+    "category": "existing_regression",
+    "review_status": "previously_audited"
+  },
+  {
+    "id": "sematary-07",
+    "question": "Which relative does Louis physically fight with at Gage's viewing?",
+    "expected_answer": "His father-in-law.",
+    "book_refs": [
+      "febee370a08c79626e848f916073b9c23d2ebed76f5976eee28b0dfc2f45bddd"
+    ],
+    "reference_evidence": [
+      {
+        "book_ref": "febee370a08c79626e848f916073b9c23d2ebed76f5976eee28b0dfc2f45bddd",
+        "chapter": 37,
+        "document_path": "OEBPS/Text/0743412273_Pet_Sematary_Chapter_37.html",
+        "text": "His father-in-law kicked out at him again and Louis caught his shoe in both hands—it thwapped solidly into his palms like a well-caught football—and shoved backward as hard as he could."
+      }
+    ],
+    "answerable": true,
+    "category": "existing_regression",
+    "review_status": "previously_audited"
+  },
+  {
+    "id": "sematary-08",
+    "question": "What is Gage doing immediately before he is struck by the truck?",
+    "expected_answer": "Running into the road.",
+    "book_refs": [
+      "febee370a08c79626e848f916073b9c23d2ebed76f5976eee28b0dfc2f45bddd"
+    ],
+    "answer_notes": "Accept running toward Route 15 or running away from his parents toward the road. The kite outing is an earlier event; the imagined rescue and subsequent school/camp biography are not actual events.",
+    "reference_evidence": [
+      {
+        "book_ref": "febee370a08c79626e848f916073b9c23d2ebed76f5976eee28b0dfc2f45bddd",
+        "chapter": 36,
+        "document_path": "OEBPS/Text/0743412273_Pet_Sematary_Chapter_36.html",
+        "text": "They were yelling at Gage to come back, but he wouldn’t—lately the game had been to run away from Mommy-Daddy—and then they were chasing him, Louis quickly outdistancing Rachel, but Gage had a big lead, Gage was laughing, Gage was running away from Daddy—that was the game—and Louis was closing the distance but too slowly, Gage was running down the mild slope of the lawn now to the verge of Route 15"
+      },
+      {
+        "book_ref": "febee370a08c79626e848f916073b9c23d2ebed76f5976eee28b0dfc2f45bddd",
+        "chapter": 36,
+        "document_path": "OEBPS/Text/0743412273_Pet_Sematary_Chapter_36.html",
+        "text": "Gage’s forward motion had carried him out into the road, and the truck had been thunder, the truck had been sunlight on high chrome, the truck had been the deep-throated, shrieking bellow of an air horn, and that had been Saturday, that had been three days ago."
+      }
+    ],
+    "answerable": true,
+    "category": "existing_regression",
+    "review_status": "previously_audited"
+  },
+  {
+    "id": "sematary-09",
+    "question": "Where does Jud take Louis to bury Church after the cat is killed?",
+    "expected_answer": "The Micmac burial ground.",
+    "book_refs": [
+      "febee370a08c79626e848f916073b9c23d2ebed76f5976eee28b0dfc2f45bddd"
+    ],
+    "answer_notes": "The Micmac burial ground and the pet cemetery are distinct places. Naming only the pet cemetery is incorrect.",
+    "reference_evidence": [
+      {
+        "book_ref": "febee370a08c79626e848f916073b9c23d2ebed76f5976eee28b0dfc2f45bddd",
+        "chapter": 22,
+        "document_path": "OEBPS/Text/0743412273_Pet_Sematary_Chapter_22.html",
+        "text": "“This was their burying ground,” Jud said. “I brought you here so you could bury Ellie’s cat here. The Micmacs didn’t discriminate, you know. They buried their pets right alongside their owners.”"
+      },
+      {
+        "book_ref": "febee370a08c79626e848f916073b9c23d2ebed76f5976eee28b0dfc2f45bddd",
+        "chapter": 35,
+        "document_path": "OEBPS/Text/0743412273_Pet_Sematary_Chapter_35.html",
+        "text": "Behind the house, the field ended and the woods began—the woods that led first to the Pet Sematary and then to the Micmac burying ground beyond it."
+      }
+    ],
+    "answerable": true,
+    "category": "existing_regression",
+    "review_status": "previously_audited"
+  },
+  {
+    "id": "sematary-10",
+    "question": "Why does Jud have keys to the Creeds' house?",
+    "expected_answer": "The previous owners gave him a set.",
+    "book_refs": [
+      "febee370a08c79626e848f916073b9c23d2ebed76f5976eee28b0dfc2f45bddd"
+    ],
+    "reference_evidence": [
+      {
+        "book_ref": "febee370a08c79626e848f916073b9c23d2ebed76f5976eee28b0dfc2f45bddd",
+        "chapter": 3,
+        "document_path": "OEBPS/Text/0743412273_Pet_Sematary_Chapter_03.html",
+        "text": "“That’s okay,” Crandall said. “I got a set. Mr. and Mrs. Cleveland… they that lived here before you—gave me a set, oh, must have been fourteen, fifteen years ago."
+      }
+    ],
+    "answerable": true,
+    "category": "existing_regression",
+    "review_status": "previously_audited"
+  },
+  {
+    "id": "sematary-11",
+    "question": "Before Jud takes him into the woods, where does Louis initially plan to bury Church?",
+    "expected_answer": "In the Pet Sematary.",
+    "book_refs": [
+      "febee370a08c79626e848f916073b9c23d2ebed76f5976eee28b0dfc2f45bddd"
+    ],
+    "reference_evidence": [
+      {
+        "book_ref": "febee370a08c79626e848f916073b9c23d2ebed76f5976eee28b0dfc2f45bddd",
+        "chapter": 22,
+        "document_path": "OEBPS/Text/0743412273_Pet_Sematary_Chapter_22.html",
+        "text": "Suddenly he had an idea. He would bury Church up in the Pet Sematary with no marker or any of that foolishness."
+      }
+    ],
+    "answer_notes": "This asks about the initial plan, not the eventual destination. Naming only the Micmac burial ground answers a different question.",
+    "answerable": true,
+    "category": "plans_vs_events",
+    "review_status": "verified"
+  },
+  {
+    "id": "sematary-12",
+    "question": "Why does Louis initially plan to bury Church without telling Ellie that the cat has died?",
+    "expected_answer": "To avoid confronting Ellie with the finality of the cat’s death; he hopes she will think Church has wandered off.",
+    "book_refs": [
+      "febee370a08c79626e848f916073b9c23d2ebed76f5976eee28b0dfc2f45bddd"
+    ],
+    "reference_evidence": [
+      {
+        "book_ref": "febee370a08c79626e848f916073b9c23d2ebed76f5976eee28b0dfc2f45bddd",
+        "chapter": 22,
+        "document_path": "OEBPS/Text/0743412273_Pet_Sematary_Chapter_22.html",
+        "text": "Suddenly he had an idea. He would bury Church up in the Pet Sematary with no marker or any of that foolishness. He would say nothing to Ellie on the phone tonight about Church; tomorrow he would mention casually that he hadn’t seen Church around; the day after he would suggest that perhaps Church had wandered off. Cats did that sometimes. Ellie would be upset, sure, but there would be none of the finality… no reprise of Rachel’s upsetting refusal to deal with death… just a withering away…"
+      }
+    ],
+    "answer_notes": "Accept avoiding or softening Ellie’s distress about Church’s death. Do not require Louis’s exact wording or infer that his plan succeeds.",
+    "answerable": true,
+    "category": "explanation",
+    "review_status": "verified"
+  },
+  {
+    "id": "sematary-13",
+    "question": "What explanation does Louis initially plan to suggest to Ellie for Church’s disappearance?",
+    "expected_answer": "That Church may have wandered off.",
+    "book_refs": [
+      "febee370a08c79626e848f916073b9c23d2ebed76f5976eee28b0dfc2f45bddd"
+    ],
+    "reference_evidence": [
+      {
+        "book_ref": "febee370a08c79626e848f916073b9c23d2ebed76f5976eee28b0dfc2f45bddd",
+        "chapter": 22,
+        "document_path": "OEBPS/Text/0743412273_Pet_Sematary_Chapter_22.html",
+        "text": "Suddenly he had an idea. He would bury Church up in the Pet Sematary with no marker or any of that foolishness. He would say nothing to Ellie on the phone tonight about Church; tomorrow he would mention casually that he hadn’t seen Church around; the day after he would suggest that perhaps Church had wandered off. Cats did that sometimes. Ellie would be upset, sure, but there would be none of the finality… no reprise of Rachel’s upsetting refusal to deal with death… just a withering away…"
+      }
+    ],
+    "answer_notes": "This is a proposed explanation, not a claim that Church actually wanders away. Preserve that distinction.",
+    "answerable": true,
+    "category": "plans_vs_events",
+    "review_status": "verified"
+  },
+  {
+    "id": "sematary-14",
+    "question": "Which burial ground lies beyond the Pet Sematary in the woods behind the Creed house?",
+    "expected_answer": "The Micmac burial ground.",
+    "book_refs": [
+      "febee370a08c79626e848f916073b9c23d2ebed76f5976eee28b0dfc2f45bddd"
+    ],
+    "reference_evidence": [
+      {
+        "book_ref": "febee370a08c79626e848f916073b9c23d2ebed76f5976eee28b0dfc2f45bddd",
+        "chapter": 35,
+        "document_path": "OEBPS/Text/0743412273_Pet_Sematary_Chapter_35.html",
+        "text": "Behind the house, the field ended and the woods began—the woods that led first to the Pet Sematary and then to the Micmac burying ground beyond it."
+      }
+    ],
+    "answer_notes": "Accept Micmac burying ground. The Pet Sematary and the burial ground beyond it are distinct places.",
+    "answerable": true,
+    "category": "location_distinction",
+    "review_status": "verified"
+  },
+  {
+    "id": "sematary-15",
+    "question": "How does Louis’s initial plan for Church’s burial differ from the place Jud takes him to bury the cat?",
+    "expected_answer": "Louis initially plans to use the Pet Sematary, but Jud takes him to the Micmac burial ground beyond it.",
+    "book_refs": [
+      "febee370a08c79626e848f916073b9c23d2ebed76f5976eee28b0dfc2f45bddd"
+    ],
+    "reference_evidence": [
+      {
+        "book_ref": "febee370a08c79626e848f916073b9c23d2ebed76f5976eee28b0dfc2f45bddd",
+        "chapter": 22,
+        "document_path": "OEBPS/Text/0743412273_Pet_Sematary_Chapter_22.html",
+        "text": "Suddenly he had an idea. He would bury Church up in the Pet Sematary with no marker or any of that foolishness. He would say nothing to Ellie on the phone tonight about Church; tomorrow he would mention casually that he hadn’t seen Church around; the day after he would suggest that perhaps Church had wandered off. Cats did that sometimes. Ellie would be upset, sure, but there would be none of the finality… no reprise of Rachel’s upsetting refusal to deal with death… just a withering away…"
+      },
+      {
+        "book_ref": "febee370a08c79626e848f916073b9c23d2ebed76f5976eee28b0dfc2f45bddd",
+        "chapter": 22,
+        "document_path": "OEBPS/Text/0743412273_Pet_Sematary_Chapter_22.html",
+        "text": "“This was their burying ground,” Jud said. “I brought you here so you could bury Ellie’s cat here. The Micmacs didn’t discriminate, you know. They buried their pets right alongside their owners.”"
+      },
+      {
+        "book_ref": "febee370a08c79626e848f916073b9c23d2ebed76f5976eee28b0dfc2f45bddd",
+        "chapter": 35,
+        "document_path": "OEBPS/Text/0743412273_Pet_Sematary_Chapter_35.html",
+        "text": "Behind the house, the field ended and the woods began—the woods that led first to the Pet Sematary and then to the Micmac burying ground beyond it."
+      }
+    ],
+    "answer_notes": "Both the initial plan and final destination are required. Accept equivalent wording; do not conflate the two sites. The separate passages jointly establish the distinction.",
+    "answerable": true,
+    "category": "multiple_passages",
+    "review_status": "verified"
+  },
+  {
+    "id": "sematary-16",
+    "question": "After Church returns, what change does Louis notice in the cat’s usual purring, and what exception does he remember?",
+    "expected_answer": "Church generally no longer purrs, but Louis remembers hearing him purr, or make a similar sound, while curled on his chest on the hide-a-bed.",
+    "book_refs": [
+      "febee370a08c79626e848f916073b9c23d2ebed76f5976eee28b0dfc2f45bddd"
+    ],
+    "reference_evidence": [
+      {
+        "book_ref": "febee370a08c79626e848f916073b9c23d2ebed76f5976eee28b0dfc2f45bddd",
+        "chapter": 30,
+        "document_path": "OEBPS/Text/0743412273_Pet_Sematary_Chapter_30.html",
+        "text": "The cat never purred anymore, and it used to have one of the loudest motors going, particularly when Church was sleeping. There had been nights when Louis had had to get up and close Ellie’s door so he could get to sleep himself.\n\nNow the cat slept like a stone. Like the dead.\n\nNo, he reminded himself, there was one exception. The night he had awakened on the hide-a-bed with Church curled up on his chest like a stinking blanket… Church had been purring that night. It had been making some sound, anyway."
+      }
+    ],
+    "answer_notes": "Both the usual change and remembered exception are required. Do not label an absolute claim that Church never purrs again as fully correct; the narration qualifies the sound.",
+    "answerable": true,
+    "category": "change_and_exception",
+    "review_status": "verified"
+  },
+  {
+    "id": "sematary-17",
+    "question": "What longer first name is used for Ellie when she hurts her knee after the family arrives?",
+    "expected_answer": "Eileen.",
+    "book_refs": [
+      "febee370a08c79626e848f916073b9c23d2ebed76f5976eee28b0dfc2f45bddd"
+    ],
+    "reference_evidence": [
+      {
+        "book_ref": "febee370a08c79626e848f916073b9c23d2ebed76f5976eee28b0dfc2f45bddd",
+        "chapter": 2,
+        "document_path": "OEBPS/Text/0743412273_Pet_Sematary_Chapter_02.html",
+        "text": "Eileen had fallen from the tire swing and hit a rock with her knee. The cut was shallow, but she was screaming like someone who had just lost a leg, Louis thought (a bit ungenerously). He glanced at the house across the road, where a light burned in the living room.\n\n“All right, Ellie,” he said. “That’s enough. Those people over there will think someone’s being murdered.”"
+      }
+    ],
+    "answer_notes": "Accept Eileen Creed. The same injury scene calls the child both Eileen and Ellie; no surname is required.",
+    "answerable": true,
+    "category": "alias",
+    "review_status": "verified"
+  },
+  {
+    "id": "sematary-18",
+    "question": "What is Jud Crandall’s wife’s first name?",
+    "expected_answer": "Norma.",
+    "book_refs": [
+      "febee370a08c79626e848f916073b9c23d2ebed76f5976eee28b0dfc2f45bddd"
+    ],
+    "reference_evidence": [
+      {
+        "book_ref": "febee370a08c79626e848f916073b9c23d2ebed76f5976eee28b0dfc2f45bddd",
+        "chapter": 4,
+        "document_path": "OEBPS/Text/0743412273_Pet_Sematary_Chapter_04.html",
+        "text": "Got married to my Norma, put in my time on the railroad, and here we still are."
+      }
+    ],
+    "answer_notes": "Accept Norma Crandall. Verify surrounding speaker attribution, since the short quotation does not itself name Jud.",
+    "answerable": true,
+    "category": "relationship",
+    "review_status": "verified"
+  },
+  {
+    "id": "sematary-19",
+    "question": "What medical condition makes it difficult for Jud’s wife to get out of the house?",
+    "expected_answer": "Arthritis.",
+    "book_refs": [
+      "febee370a08c79626e848f916073b9c23d2ebed76f5976eee28b0dfc2f45bddd"
+    ],
+    "reference_evidence": [
+      {
+        "book_ref": "febee370a08c79626e848f916073b9c23d2ebed76f5976eee28b0dfc2f45bddd",
+        "chapter": 3,
+        "document_path": "OEBPS/Text/0743412273_Pet_Sematary_Chapter_03.html",
+        "text": "My wife would like to say hello too. She don’t get out too much. Arthritis got bad the last two or three years.”"
+      }
+    ],
+    "answer_notes": "Accept worsening or severe arthritis. Do not require an unsupported arthritis subtype.",
+    "answerable": true,
+    "category": "direct_fact",
+    "review_status": "verified"
+  },
+  {
+    "id": "sematary-20",
+    "question": "What does Louis apply to Eileen’s injured leg after the family arrives?",
+    "expected_answer": "Mercurochrome.",
+    "book_refs": [
+      "febee370a08c79626e848f916073b9c23d2ebed76f5976eee28b0dfc2f45bddd"
+    ],
+    "reference_evidence": [
+      {
+        "book_ref": "febee370a08c79626e848f916073b9c23d2ebed76f5976eee28b0dfc2f45bddd",
+        "chapter": 2,
+        "document_path": "OEBPS/Text/0743412273_Pet_Sematary_Chapter_02.html",
+        "text": "Rachel put Gage down and held Eileen’s leg, which Louis painted with Mercurochrome in spite of her increasingly hysterical wails."
+      }
+    ],
+    "answer_notes": "Accept describing Mercurochrome as an antiseptic if it is named. A generic treatment without the requested substance is incomplete.",
+    "answerable": true,
+    "category": "direct_fact",
+    "review_status": "verified"
+  },
+  {
+    "id": "sematary-21",
+    "question": "Which of Louis’s children has a bee sting when he introduces the family to Jud?",
+    "expected_answer": "Gage.",
+    "book_refs": [
+      "febee370a08c79626e848f916073b9c23d2ebed76f5976eee28b0dfc2f45bddd"
+    ],
+    "reference_evidence": [
+      {
+        "book_ref": "febee370a08c79626e848f916073b9c23d2ebed76f5976eee28b0dfc2f45bddd",
+        "chapter": 3,
+        "document_path": "OEBPS/Text/0743412273_Pet_Sematary_Chapter_03.html",
+        "text": "“Yes. Louis Creed. This is my wife Rachel, my daughter Ellie, and the kid with the bee sting is Gage.”"
+      }
+    ],
+    "answer_notes": "Identify the child with the bee sting, rather than Eileen, whose knee is cut in a different incident.",
+    "answerable": true,
+    "category": "relationship",
+    "review_status": "verified"
+  },
+  {
+    "id": "sematary-22",
+    "question": "What illness caused Zelda’s death?",
+    "expected_answer": "Spinal meningitis.",
+    "book_refs": [
+      "febee370a08c79626e848f916073b9c23d2ebed76f5976eee28b0dfc2f45bddd"
+    ],
+    "reference_evidence": [
+      {
+        "book_ref": "febee370a08c79626e848f916073b9c23d2ebed76f5976eee28b0dfc2f45bddd",
+        "chapter": 8,
+        "document_path": "OEBPS/Text/0743412273_Pet_Sematary_Chapter_08.html",
+        "text": "Rachel’s sister had died very young, and it had left a scar which Louis had learned early in their marriage not to touch. Her name had been Zelda, and her death had been from spinal meningitis."
+      }
+    ],
+    "answer_notes": "Accept meningitis, including the more specific spinal meningitis. Do not require an additional cause not stated in the text.",
+    "answerable": true,
+    "category": "direct_fact",
+    "review_status": "verified"
+  },
+  {
+    "id": "sematary-23",
+    "question": "How is Zelda related to Rachel?",
+    "expected_answer": "Zelda is Rachel’s sister.",
+    "book_refs": [
+      "febee370a08c79626e848f916073b9c23d2ebed76f5976eee28b0dfc2f45bddd"
+    ],
+    "reference_evidence": [
+      {
+        "book_ref": "febee370a08c79626e848f916073b9c23d2ebed76f5976eee28b0dfc2f45bddd",
+        "chapter": 8,
+        "document_path": "OEBPS/Text/0743412273_Pet_Sematary_Chapter_08.html",
+        "text": "Rachel’s sister had died very young, and it had left a scar which Louis had learned early in their marriage not to touch. Her name had been Zelda, and her death had been from spinal meningitis."
+      }
+    ],
+    "answer_notes": "Accept her sister. The relationship, not merely Zelda’s illness, is required.",
+    "answerable": true,
+    "category": "relationship",
+    "review_status": "verified"
+  },
+  {
+    "id": "sematary-24",
+    "question": "What is the full name of the dying young man brought into the infirmary on the morning Louis later associates with the nightmare’s beginning?",
+    "expected_answer": "Victor Pascow.",
+    "book_refs": [
+      "febee370a08c79626e848f916073b9c23d2ebed76f5976eee28b0dfc2f45bddd"
+    ],
+    "reference_evidence": [
+      {
+        "book_ref": "febee370a08c79626e848f916073b9c23d2ebed76f5976eee28b0dfc2f45bddd",
+        "chapter": 12,
+        "document_path": "OEBPS/Text/0743412273_Pet_Sematary_Chapter_12.html",
+        "text": "Looking back on it, Louis would think—when he could bear to think about it at all—that the nightmare really began when they brought the dying boy, Victor Pascow, into the infirmary around ten that morning."
+      }
+    ],
+    "answer_notes": "Accept Victor Pascow. Verify that the long question is unambiguous; naming another patient is incorrect.",
+    "answerable": true,
+    "category": "direct_fact",
+    "review_status": "verified"
+  },
+  {
+    "id": "sematary-25",
+    "question": "What kind of factory does Jud say Orinco operates near Orrington?",
+    "expected_answer": "A chemical fertilizer factory.",
+    "book_refs": [
+      "febee370a08c79626e848f916073b9c23d2ebed76f5976eee28b0dfc2f45bddd"
+    ],
+    "reference_evidence": [
+      {
+        "book_ref": "febee370a08c79626e848f916073b9c23d2ebed76f5976eee28b0dfc2f45bddd",
+        "chapter": 6,
+        "document_path": "OEBPS/Text/0743412273_Pet_Sematary_Chapter_06.html",
+        "text": "“Orinco’s near Orrington,” Crandall said. “Chemical fertilizer fact’ry."
+      }
+    ],
+    "answer_notes": "Accept fertilizer factory or chemical fertilizer plant. An oil refinery confuses the named factory with other trucks in the same conversation.",
+    "answerable": true,
+    "category": "direct_fact",
+    "review_status": "verified"
+  },
+  {
+    "id": "sematary-26",
+    "question": "Approximately how long before the Creeds arrive does Jud say the previous owners gave him spare house keys?",
+    "expected_answer": "About fourteen or fifteen years earlier.",
+    "book_refs": [
+      "febee370a08c79626e848f916073b9c23d2ebed76f5976eee28b0dfc2f45bddd"
+    ],
+    "reference_evidence": [
+      {
+        "book_ref": "febee370a08c79626e848f916073b9c23d2ebed76f5976eee28b0dfc2f45bddd",
+        "chapter": 3,
+        "document_path": "OEBPS/Text/0743412273_Pet_Sematary_Chapter_03.html",
+        "text": "“That’s okay,” Crandall said. “I got a set. Mr. and Mrs. Cleveland… they that lived here before you—gave me a set, oh, must have been fourteen, fifteen years ago."
+      }
+    ],
+    "answer_notes": "Accept approximately fourteen to fifteen years. This is Jud’s estimate; do not turn it into a definite calendar year or exact date.",
+    "answerable": true,
+    "category": "approximation",
+    "review_status": "verified"
+  },
+  {
+    "id": "sematary-27",
+    "question": "How was Joan Cleveland connected to Jud’s wife?",
+    "expected_answer": "Joan Cleveland was Norma’s best friend.",
+    "book_refs": [
+      "febee370a08c79626e848f916073b9c23d2ebed76f5976eee28b0dfc2f45bddd"
+    ],
+    "reference_evidence": [
+      {
+        "book_ref": "febee370a08c79626e848f916073b9c23d2ebed76f5976eee28b0dfc2f45bddd",
+        "chapter": 3,
+        "document_path": "OEBPS/Text/0743412273_Pet_Sematary_Chapter_03.html",
+        "text": "Joan Cleveland was my wife’s best friend."
+      },
+      {
+        "book_ref": "febee370a08c79626e848f916073b9c23d2ebed76f5976eee28b0dfc2f45bddd",
+        "chapter": 4,
+        "document_path": "OEBPS/Text/0743412273_Pet_Sematary_Chapter_04.html",
+        "text": "Got married to my Norma, put in my time on the railroad, and here we still are."
+      }
+    ],
+    "answer_notes": "Accept Jud’s wife’s best friend without requiring Norma’s name. Distinguish Joan from Bill Cleveland; the excerpts connect the unnamed wife to Norma.",
+    "answerable": true,
+    "category": "multiple_passages",
+    "review_status": "verified"
+  },
+  {
+    "id": "sematary-28",
+    "question": "What change in Church does Ellie complain about when she picks him up after his return?",
+    "expected_answer": "He smells bad or unusual.",
+    "book_refs": [
+      "febee370a08c79626e848f916073b9c23d2ebed76f5976eee28b0dfc2f45bddd"
+    ],
+    "reference_evidence": [
+      {
+        "book_ref": "febee370a08c79626e848f916073b9c23d2ebed76f5976eee28b0dfc2f45bddd",
+        "chapter": 28,
+        "document_path": "OEBPS/Text/0743412273_Pet_Sematary_Chapter_28.html",
+        "text": "“Church smells funny.”\n\n“Does he?” Louis asked, his voice carefully neutral.\n\n“Yes!” Ellie said, distressed. “Yes, he does! He never smelled funny before! He smells like… he smells like ka-ka! ”"
+      }
+    ],
+    "answer_notes": "Accept a bad, strange, or foul smell. This asks for Ellie’s observation, not Louis’s suggested explanation that the cat rolled in something.",
+    "answerable": true,
+    "category": "observed_change",
+    "review_status": "needs_review"
+  },
+  {
+    "id": "sematary-29",
+    "question": "On what exact calendar date did the previous owners give Jud his spare keys to the house?",
+    "expected_answer": "The book does not specify an exact calendar date.",
+    "book_refs": [
+      "febee370a08c79626e848f916073b9c23d2ebed76f5976eee28b0dfc2f45bddd"
+    ],
+    "reference_evidence": [],
+    "answer_notes": "PROVISIONAL UNANSWERABLE: chapter 3 gives only an estimate of fourteen or fifteen years earlier. Review the full attached edition before confirming absence. Reject converting that estimate into an invented exact date; a retrieval miss alone is not proof of absence.",
+    "answerable": false,
+    "category": "missing_detail",
+    "review_status": "verified"
+  },
+  {
+    "id": "sematary-30",
+    "question": "What is the exact registration plate number of the truck that strikes Gage?",
+    "expected_answer": "The book does not specify the truck’s registration plate number.",
+    "book_refs": [
+      "febee370a08c79626e848f916073b9c23d2ebed76f5976eee28b0dfc2f45bddd"
+    ],
+    "reference_evidence": [],
+    "answer_notes": "PROVISIONAL UNANSWERABLE: review the full edition, particularly the accident recollections and reporting about the driver or truck. ORINCO is a company marking, not a registration plate. If a plate is stated, replace the proposed answer and add evidence rather than forcing an unanswerable label.",
+    "answerable": false,
+    "category": "missing_detail",
+    "review_status": "verified"
+  }
+]

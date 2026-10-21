@@ -88,6 +88,8 @@ class DeepEvalTests(unittest.TestCase):
             [param.value for param in metrics[-1].evaluation_params],
             ["input", "actual_output", "expected_output"],
         )
+        self.assertIsNone(metrics[-1].criteria)
+        self.assertTrue(metrics[-1].evaluation_steps)
         get.return_value.eval_judge_model = None
         self.assertEqual(build_metrics()[0].model.get_model_name(), "gpt-4o-mini")
 

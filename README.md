@@ -373,7 +373,10 @@ uv run python eval.py all --method vector --output evals/results/vector/answers.
 candidate depth defaults to 20 per method and explicit depths must be at least
 five. The dataset, system instructions, and judge rubric are unchanged.
 
-The runner reads `evals/basic.json`: ten English questions about Pet Sematary.
+The runner reads `evals/basic.json`: 29 reviewed English questions about Pet
+Sematary (27 answerable and two unanswerable). Unanswerable cases currently use
+the existing metric suite without special handling; interpret their retrieval
+scores separately. One additional question remains in the review draft.
 It calls the full agent independently for each question, including tool selection
 and query rewriting, then passes the entire batch to DeepEval’s `evaluate()`
 Python API. No pytest runner or parametrization is involved. The source JSON

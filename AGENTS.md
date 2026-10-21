@@ -7,6 +7,15 @@ books. This is a learning and experimentation project: keep retrieval,
 chunking, persistence, prompts, and evaluation understandable, and add
 infrastructure only when it solves a current problem.
 
+### Learning diary
+
+Before finishing relevant work, check whether it produced a meaningful AI
+engineering lesson. If so, read and apply
+[the learning-diary skill](.agents/skills/learning-diary/SKILL.md) to update
+`DIARY.md` automatically, then tell the user what was recorded in the final
+response. Preserve dated history; skip routine work, quick fixes, refactors,
+and UI styling unless they establish a substantive AI engineering lesson.
+
 ### Commands that exist today
 
 Run commands from the repository root with `uv`. Use `uv run python` for

@@ -1,11 +1,48 @@
-# Curated starter dataset
+# Curated book evaluation dataset
 
-`basic.json` contains ten English Pet Sematary questions. Each question runs
+`basic.json` now contains **29 reviewed English Pet Sematary cases**: 27
+answerable questions and two unanswerable questions (29 and 30). On 2026-10-21,
+the ten previously audited cases and nineteen user-verified additions were
+promoted from the review draft. Case 28 remains in the draft as `needs_review`.
+The `sematary-11` placeholder was replaced with the reviewed burial-plan question.
+The expanded Ludlow excerpt includes Louis Creed's name; added display quotation
+marks were removed so the excerpt remains exact EPUB text.
+
+The current runner executes every case in this file and does not interpret
+`answerable`, `category`, or `review_status`. Unanswerable cases therefore still
+receive the existing metric suite without special handling; interpret their
+retrieval scores separately and calibrate refusal scoring before using aggregate
+scores as a quality gate. This expanded dataset establishes a new baseline.
+
+## Expanded dataset for manual review
+
+An expanded **review draft**, separate from the active starter file, lives in
+[`drafts/pet-sematary-expanded.review.json`](drafts/pet-sematary-expanded.review.json).
+It retains all thirty proposed cases, including the one still awaiting review.
+Use the [review checklist and question table](drafts/pet-sematary-expanded-review.md)
+to verify proposed answers and supporting evidence before promotion.
+
+The draft preserves the existing core fields and adds `category`, `answerable`,
+and `review_status` annotations. Existing cases are `previously_audited`;
+nineteen additions are `verified`, and case 28 is `needs_review`. The reviewed
+unanswerable cases have empty evidence lists. Their absence claims were marked
+verified by the user; an empty evidence list alone does not establish absence.
+
+These annotations are not execution guards: the current runner ignores them.
+Use `basic.json` for the promoted cases rather than running the full draft.
+Questions sharing the same scene should stay together when separating
+development and held-out cases; they are related diagnostics, not independent
+measurements. Expanding the question set establishes a new dataset baseline.
+
+## Original starter cases
+
+The original starter set contained ten English Pet Sematary questions. Each case runs
 against the book attached through its exact EPUB SHA-256 reference. Questions
 omit the title because attachment selection happens outside the model.
 
-The dataset was audited against the local English EPUB on 2026-10-19. Every
-reference excerpt is an exact substring of the indicated extracted chapter.
+The original ten cases were audited against the local English EPUB on 2026-10-19.
+Supplied excerpts in the active expanded set have also been mechanically checked
+as exact substrings of the indicated extracted chapters.
 
 ## Case fields
 
@@ -20,6 +57,11 @@ reference excerpt is an exact substring of the indicated extracted chapter.
   EPUB archive, not the workspace. Avoid numeric chunk IDs here: they can change
   when the chunking implementation changes.
 - `answer_notes`: optional human-review guidance for aliases or interpretation.
+- `answerable`: whether the attached edition supplies the requested information;
+  reviewed unanswerable cases have empty `reference_evidence` lists.
+- `category`: the behavior exercised by the case, for human review.
+- `review_status`: `previously_audited` or `verified` for active cases;
+  `needs_review` cases stay in the review draft.
 
 Reference evidence and answer notes are for dataset review and future retrieval
 checks. The current runner passes only the question and attached-book context to
@@ -107,8 +149,9 @@ uv run python eval.py all --method vector --output evals/results/vector/answers.
 `--method bm25` is also supported. `--candidate-limit` applies only to hybrid and
 must be at least five. Changing candidate depth is a separate experiment; keep
 the dataset, model, judge, and final passage count fixed for retrieval comparisons.
-System instructions and scoring rubrics are unchanged; context headers identify
-the applicable score type instead of treating RRF scores as cosine similarities.
+Retrieval-method comparisons should keep system instructions and the scoring
+rubric fixed; context headers identify the applicable score type instead of
+treating RRF scores as cosine similarities.
 
 Each new answer row records `retrieval.method`, `top_k`, effective
 `candidate_limit`, and `rrf_constant`. Source records preserve original scores
@@ -126,3 +169,33 @@ uv run python eval.py score --output evals/results/hybrid/answers.json
 Score-only rejects `--method` and `--candidate-limit` because it uses frozen
 answers. The default `uv run python eval.py` now generates hybrid answers and
 replaces `basic_result.json`; use distinct output files to retain comparisons.
+
+## Answer Correctness rubric — explicit evaluation steps
+
+On 2026-10-21, Answer Correctness switched from prose `criteria` with generated
+steps to explicit `evaluation_steps`. The expected answer defines the minimum
+requested facts, not a required response format. Equivalent wording, complete
+sentences, citations, and extra information absent from that minimal reference
+do not alone justify deductions. Missing requested facts and contradictions do.
+An abstention is accepted when the expected answer says information is unavailable;
+it omits the requested fact when the reference supplies an answer.
+
+Correctness still receives only the question, actual answer, and expected answer.
+It does not verify extra claims using outside knowledge or retrieved passages;
+Faithfulness separately evaluates support from the actual retrieval context.
+`answer_notes`, `answerable`, and reference evidence are not newly injected into
+the judge. The judge model, 0.7 threshold, and other metric configurations are
+unchanged. Built-in retrieval metrics still need separate handling/calibration
+for unanswerable cases.
+
+To isolate this rubric change, rescore the same saved outputs:
+
+```bash
+uv run python eval.py score
+```
+
+Use `--output` if the frozen answers are stored elsewhere. This does not regenerate
+answers or retrieve again; it reruns all five judges and appends a DeepEval run.
+Judge outputs can vary even with unchanged configurations. A score increase after
+rescoring is a measurement change, not evidence that retrieval improved. Establish
+a new scoring baseline after checking agreement with human-reviewed examples.
