@@ -34,6 +34,8 @@ class EvaluationTests(unittest.TestCase):
         }
         for case in self.cases:
             case["book_refs"] = ["a" * 64]
+        self.cases[0]["answerable"] = True
+        self.cases[1]["answerable"] = False
         resolver = patch(
             "rag_library.evaluation.get_books_by_refs", return_value=[self.book]
         )
@@ -67,6 +69,8 @@ class EvaluationTests(unittest.TestCase):
             [case["question"] for case in self.cases],
         )
         self.assertEqual(results[0]["actual_answer"], "Una respuesta")
+        self.assertTrue(results[0]["answerable"])
+        self.assertFalse(results[1]["answerable"])
         self.assertEqual(
             results[0]["tool_calls"][0]["result"]["sources"], [{"text": "chapter 1"}]
         )
@@ -82,6 +86,8 @@ class EvaluationTests(unittest.TestCase):
                 "top_k": 5,
                 "candidate_limit": 20,
                 "rrf_constant": 60,
+                "rerank": True,
+                "rerank_model": "rerank-v5.0-pro",
             },
         )
         self.assertEqual(run.call_args.kwargs["context"].retrieval_method, "hybrid")
@@ -125,6 +131,16 @@ class EvaluationTests(unittest.TestCase):
                 run_evaluation(self.dataset, self.output)
         get.assert_not_called()
 
+    @patch("rag_library.evaluation.get_agent")
+    def test_non_boolean_answerable_fails_before_overwriting_answers(self, get):
+        self.cases[0]["answerable"] = "false"
+        self.dataset.write_text(json.dumps(self.cases))
+        self.output.write_text("preserve this")
+        with self.assertRaisesRegex(ValueError, "boolean answerable"):
+            run_evaluation(self.dataset, self.output)
+        get.assert_not_called()
+        self.assertEqual(self.output.read_text(), "preserve this")
+
     def test_cannot_overwrite_question_set(self):
         with self.assertRaisesRegex(ValueError, "separately"):
             run_evaluation(self.dataset, self.dataset)
@@ -141,8 +157,23 @@ class EvaluationTests(unittest.TestCase):
                 "top_k": 5,
                 "candidate_limit": None,
                 "rrf_constant": None,
+                "rerank": False,
+                "rerank_model": None,
             },
         )
+
+    @patch("rag_library.evaluation.get_agent")
+    @patch("rag_library.evaluation.run_agent", return_value=AgentResult("Answer", []))
+    def test_rerank_disable_and_candidate_depth_are_saved(self, run, get):
+        rows = run_evaluation(
+            self.dataset, self.output, candidate_limit=100, rerank=False
+        )
+        context = run.call_args.kwargs["context"]
+        self.assertFalse(context.rerank)
+        self.assertEqual(context.candidate_limit, 100)
+        self.assertFalse(rows[0]["retrieval"]["rerank"])
+        self.assertIsNone(rows[0]["retrieval"]["rerank_model"])
+        self.assertEqual(rows[0]["retrieval"]["candidate_limit"], 100)
 
     @patch("rag_library.evaluation.get_agent")
     def test_invalid_retrieval_options_preserve_existing_output(self, get):
@@ -151,6 +182,43 @@ class EvaluationTests(unittest.TestCase):
             run_evaluation(self.dataset, self.output, candidate_limit=4)
         get.assert_not_called()
         self.assertEqual(self.output.read_text(), "preserve this")
+
+    @patch("rag_library.evaluation.get_agent")
+    @patch("rag_library.evaluation.run_agent", return_value=AgentResult("Answer", []))
+    def test_selected_ids_run_once_in_dataset_order_and_save_only_subset(
+        self, run, get
+    ):
+        progress = []
+        rows = run_evaluation(
+            self.dataset,
+            self.output,
+            case_ids=["two", "one", "two"],
+            on_progress=progress.append,
+        )
+        self.assertEqual([row["id"] for row in rows], ["one", "two"])
+        self.assertEqual(run.call_count, 2)
+        run.reset_mock()
+        progress.clear()
+        rows = run_evaluation(
+            self.dataset, self.output, case_ids=["two"], on_progress=progress.append
+        )
+        run.assert_called_once()
+        self.assertEqual(run.call_args.args[1], "¿Dónde?")
+        self.assertEqual([row["id"] for row in rows], ["two"])
+        self.assertEqual(json.loads(self.output.read_text()), rows)
+        self.assertEqual(
+            [(event.index, event.total) for event in progress], [(1, 1)] * 2
+        )
+
+    @patch("rag_library.evaluation.get_agent")
+    def test_unknown_or_empty_selection_preserves_output_before_agent_calls(self, get):
+        self.output.write_text("previous results")
+        for selection in [["one", "unknown"], []]:
+            with self.subTest(selection=selection), self.assertRaises(ValueError):
+                run_evaluation(self.dataset, self.output, case_ids=selection)
+        get.assert_not_called()
+        self.resolve.assert_not_called()
+        self.assertEqual(self.output.read_text(), "previous results")
 
     @patch("rag_library.evaluation.get_agent")
     def test_duplicate_ids_fail_before_agent_calls(self, get):
@@ -175,6 +243,7 @@ class EvaluationTests(unittest.TestCase):
             book_ids=[7],
             method="hybrid",
             candidate_limit=None,
+            rerank=True,
         )
         self.assertEqual(result["answer"], "En Ludlow.")
         self.assertEqual(result["sources"][0]["chapter_number"], 1)

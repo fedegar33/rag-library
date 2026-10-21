@@ -96,7 +96,7 @@ class BookScopeTests(unittest.TestCase):
         retriever.return_value.invoke.return_value = []
         self.assertEqual(ask_question("Question", book_ids=[7]).sources, [])
         retriever.assert_called_once_with(
-            k=5, book_ids=[7], method="vector", candidate_limit=None
+            k=5, book_ids=[7], method="vector", candidate_limit=None, rerank=True
         )
         model.assert_not_called()
 
@@ -107,7 +107,12 @@ class BookScopeTests(unittest.TestCase):
             self.assertEqual(ask_main(), 0)
         resolve.assert_called_once_with(None)
         ask.assert_called_once_with(
-            "Question", 5, book_ids=[7], method="vector", candidate_limit=None
+            "Question",
+            5,
+            book_ids=[7],
+            method="vector",
+            candidate_limit=None,
+            rerank=True,
         )
 
     @patch("rag_library.cli.search.resolve_book_id", return_value=8)

@@ -24,7 +24,9 @@ def format_results(results: list[SearchResult], verbose: bool = False) -> str:
     """Format search results for terminal output."""
     lines = [f"Top {len(results)} chunks found"]
     if results:
-        if results[0].rrf_score is not None:
+        if results[0].rerank_score is not None:
+            score_label = "Rerank score"
+        elif results[0].rrf_score is not None:
             score_label = "RRF score"
         elif results[0].bm25_score is not None:
             score_label = "BM25 score"
@@ -33,7 +35,9 @@ def format_results(results: list[SearchResult], verbose: bool = False) -> str:
         lines.append(f"Book  Chapter  Chunk  {score_label}  Preview")
         for result in results:
             preview = " ".join(result.text.split())[:50]
-            if result.rrf_score is not None:
+            if result.rerank_score is not None:
+                score = result.rerank_score
+            elif result.rrf_score is not None:
                 score = result.rrf_score
             elif result.bm25_score is not None:
                 score = result.bm25_score
@@ -53,6 +57,11 @@ def format_results(results: list[SearchResult], verbose: bool = False) -> str:
                     f"chapter {result.chapter_number} · chunk {result.chunk_index} ---",
                 ]
             )
+            if result.rerank_score is not None:
+                lines.append(
+                    f"Rerank score: {result.rerank_score:.6f} | "
+                    f"RRF rank before reranking: {result.rrf_rank}"
+                )
             if result.rrf_score is not None:
                 lines.append(
                     f"RRF score: {result.rrf_score:.6f} | "
@@ -90,6 +99,12 @@ def main() -> int:
         help="Hybrid candidates per method (default: max(20, --limit)); >= --limit",
     )
     parser.add_argument(
+        "--rerank",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="Rerank hybrid candidates with Cohere rerank-v5.0-pro (default: enabled)",
+    )
+    parser.add_argument(
         "--verbose",
         action="store_true",
         help="Print the complete text for each matching chunk",
@@ -100,6 +115,8 @@ def main() -> int:
         help="Restrict search to comma-separated chapter numbers, e.g. 1,2,3",
     )
     args = parser.parse_args()
+    if args.rerank and args.method != "hybrid":
+        parser.error("--rerank requires --method hybrid")
     if args.candidate_limit is not None:
         if args.method != "hybrid":
             parser.error("--candidate-limit requires --method hybrid")
@@ -118,6 +135,7 @@ def main() -> int:
                 args.chapter,
                 book_ids=book_ids,
                 candidate_limit=args.candidate_limit,
+                rerank=args.rerank is not False,
             )
         else:
             search = bm25_search if args.method == "bm25" else semantic_search

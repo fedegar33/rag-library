@@ -29,6 +29,8 @@ class SearchResult:
     rrf_score: float | None = None
     vector_rank: int | None = None
     bm25_rank: int | None = None
+    rerank_score: float | None = None
+    rrf_rank: int | None = None
 
 
 def semantic_search(

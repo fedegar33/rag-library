@@ -24,6 +24,7 @@ class Settings(DatabaseSettings):
     openai_embedding_model: str = "text-embedding-3-small"
     openai_chat_model: str = "gpt-4o-mini"
     eval_judge_model: str | None = None
+    cohere_api_key: str | None = None
 
 
 @lru_cache

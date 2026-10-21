@@ -100,6 +100,8 @@ class AttachedContextTests(unittest.TestCase):
                 bm25_score=2.0,
                 rrf_score=1 / 61,
                 bm25_rank=1,
+                rerank_score=0.9,
+                rrf_rank=41,
             )
         ]
         settings.return_value = SimpleNamespace(
@@ -127,7 +129,7 @@ class AttachedContextTests(unittest.TestCase):
             agent, "Where?", context=AgentContext((book(),), candidate_limit=30)
         )
         search.assert_called_once_with(
-            "Where?", limit=5, book_ids=[7], candidate_limit=30
+            "Where?", limit=5, book_ids=[7], candidate_limit=30, rerank=True
         )
         self.assertEqual(result.answer, "Ludlow")
         source = result.tool_calls[0].result["sources"][0]
@@ -135,6 +137,8 @@ class AttachedContextTests(unittest.TestCase):
         self.assertEqual(source["bm25_rank"], 1)
         self.assertEqual(source["bm25_score"], 2.0)
         self.assertAlmostEqual(source["rrf_score"], 1 / 61)
+        self.assertEqual(source["rerank_score"], 0.9)
+        self.assertEqual(source["rrf_rank"], 41)
         self.assertIsNone(source["similarity"])
         messages = chat.return_value.invoke.call_args.args[0].to_messages()
         self.assertIn("RRF score: 0.016393", messages[1].content)
@@ -151,7 +155,7 @@ class AttachedContextTests(unittest.TestCase):
             ),
         )
         ask.assert_called_once_with(
-            "Where?", book_ids=[7], method="vector", candidate_limit=None
+            "Where?", book_ids=[7], method="vector", candidate_limit=None, rerank=True
         )
 
     def test_invalid_retrieval_configuration_rejected_before_agent_execution(self):
@@ -166,6 +170,18 @@ class AttachedContextTests(unittest.TestCase):
                 self.assertRaises(ValueError),
             ):
                 AgentContext((book(),), retrieval_method=method, candidate_limit=depth)
+
+    @patch("rag_library.rag.retriever.hybrid_search", return_value=[])
+    def test_agent_can_disable_reranking_through_answering(self, search):
+        answer_book_question.func(
+            question="Where?",
+            runtime=SimpleNamespace(
+                context=AgentContext((book(),), candidate_limit=100, rerank=False)
+            ),
+        )
+        search.assert_called_once_with(
+            "Where?", limit=5, book_ids=[7], candidate_limit=100, rerank=False
+        )
 
     @patch("rag_library.catalog.list_books")
     def test_refs_resolve_after_numeric_ids_change_and_missing_refs_fail(self, catalog):

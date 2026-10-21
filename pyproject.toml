@@ -18,6 +18,7 @@ dependencies = [
     "uvicorn[standard]>=0.30.0,<1.0.0",
     "deepeval>=4.3.0",
     "bm25s>=0.3.14,<0.4",
+    "cohere>=5,<6",
 ]
 
 [project.scripts]

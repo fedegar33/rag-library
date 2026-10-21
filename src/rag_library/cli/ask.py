@@ -28,11 +28,19 @@ def main() -> int:
         help="Retrieval method (default: vector; agent/evals default to hybrid)",
     )
     parser.add_argument(
+        "--rerank",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="Rerank hybrid candidates with Cohere (default: enabled)",
+    )
+    parser.add_argument(
         "--candidate-limit",
         type=int,
         help="Hybrid candidates per method (default: max(20, --top-k))",
     )
     args = parser.parse_args()
+    if args.rerank and args.method != "hybrid":
+        parser.error("--rerank requires --method hybrid")
     if args.candidate_limit is not None:
         if args.method != "hybrid" or args.candidate_limit < max(1, args.top_k):
             parser.error(
@@ -47,6 +55,7 @@ def main() -> int:
             book_ids=[book_id],
             method=args.method,
             candidate_limit=args.candidate_limit,
+            rerank=args.rerank is not False,
         )
     except Exception as error:
         print(f"Ask failed: {error}", file=sys.stderr)
@@ -59,7 +68,9 @@ def main() -> int:
     if response.sources:
         for source in response.sources:
             chapter = source.chapter_number or "?"
-            if source.rrf_score is not None:
+            if source.rerank_score is not None:
+                score = f"rerank score {source.rerank_score:.6f}"
+            elif source.rrf_score is not None:
                 score = f"RRF score {source.rrf_score:.6f}"
             elif source.bm25_score is not None:
                 score = f"BM25 score {source.bm25_score:.4f}"

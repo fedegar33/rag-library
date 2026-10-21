@@ -35,5 +35,6 @@ def answer_book_question(
             book_ids=runtime.context.book_ids,
             method=runtime.context.retrieval_method,
             candidate_limit=runtime.context.candidate_limit,
+            rerank=runtime.context.rerank,
         )
     )

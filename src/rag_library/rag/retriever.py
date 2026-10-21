@@ -19,6 +19,7 @@ class BookRetriever(BaseRetriever):
     book_ids: list[Annotated[int, Field(gt=0, strict=True)]] = Field(min_length=1)
     method: RetrievalMethod = "vector"
     candidate_limit: int | None = Field(default=None, ge=1)
+    rerank: bool = True
 
     def _get_relevant_documents(self, query: str, *, run_manager) -> list[Document]:
         if self.k < 1:
@@ -30,6 +31,7 @@ class BookRetriever(BaseRetriever):
                 limit=self.k,
                 book_ids=self.book_ids,
                 candidate_limit=self.candidate_limit,
+                rerank=self.rerank,
             )
         else:
             if self.candidate_limit is not None:

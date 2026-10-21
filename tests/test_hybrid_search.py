@@ -92,14 +92,18 @@ class HybridSearchTests(unittest.TestCase):
     def test_identical_query_scope_and_chapters_with_deeper_candidates(self):
         self.vector.return_value = [candidate(7, 0, similarity=0.8)]
         self.bm25.return_value = [candidate(7, 0, bm25_score=3.0)]
-        results = hybrid_search("  cat  ", chapters=[3], book_ids=[7, 8, 7])
+        results = hybrid_search(
+            "  cat  ", chapters=[3], book_ids=[7, 8, 7], rerank=False
+        )
         for search in [self.vector, self.bm25]:
             search.assert_called_once_with("cat", 20, [3], book_ids=[7, 8])
         self.assertAlmostEqual(results[0].rrf_score, 2 / 61)
 
     def test_depth_increases_with_limit_and_supports_override(self):
         for limit, override, expected in [(30, None, 30), (5, 40, 40)]:
-            hybrid_search("cat", limit=limit, candidate_limit=override, book_ids=[7])
+            hybrid_search(
+                "cat", limit=limit, candidate_limit=override, book_ids=[7], rerank=False
+            )
             for search in [self.vector, self.bm25]:
                 self.assertEqual(search.call_args.args[1], expected)
 
@@ -121,13 +125,13 @@ class HybridSearchTests(unittest.TestCase):
     def test_branch_errors_propagate_instead_of_returning_partial_results(self):
         self.vector.side_effect = RuntimeError("Embedding failed")
         with self.assertRaisesRegex(RuntimeError, "Embedding failed"):
-            hybrid_search("cat", book_ids=[7])
+            hybrid_search("cat", book_ids=[7], rerank=False)
         self.bm25.assert_not_called()
         self.vector.side_effect = None
         self.vector.return_value = [candidate(7, 0, similarity=0.8)]
         self.bm25.side_effect = RuntimeError("Index failed")
         with self.assertRaisesRegex(RuntimeError, "Index failed"):
-            hybrid_search("cat", book_ids=[7])
+            hybrid_search("cat", book_ids=[7], rerank=False)
 
 
 class HybridCliTests(unittest.TestCase):
@@ -158,7 +162,7 @@ class HybridCliTests(unittest.TestCase):
         ):
             self.assertEqual(main(), 0)
         search.assert_called_once_with(
-            "cat", 10, [2, 3], book_ids=[7, 8], candidate_limit=30
+            "cat", 10, [2, 3], book_ids=[7, 8], candidate_limit=30, rerank=True
         )
 
     @patch("rag_library.cli.search.resolve_book_id", return_value=7)
@@ -175,7 +179,7 @@ class HybridCliTests(unittest.TestCase):
             self.assertEqual(main(), 1)
         self.assertIn("Search failed: Embedding failed", output.getvalue())
         search.assert_called_once_with(
-            "cat", 5, None, book_ids=[7], candidate_limit=None
+            "cat", 5, None, book_ids=[7], candidate_limit=None, rerank=True
         )
 
     @patch("rag_library.cli.search.resolve_book_id")

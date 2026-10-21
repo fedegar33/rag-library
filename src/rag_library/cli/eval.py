@@ -38,14 +38,32 @@ def main() -> int:
         default="all",
     )
     parser.add_argument("--dataset", type=Path, default=Path("evals/basic.json"))
+    parser.add_argument(
+        "--id",
+        dest="case_ids",
+        action="append",
+        help="Run only this exact case ID (repeat to select several cases)",
+    )
     parser.add_argument("--output", type=Path, default=Path("evals/basic_result.json"))
     parser.add_argument("--results-folder", type=Path, default=Path("evals/results"))
     parser.add_argument("--max-concurrent", type=int, default=20)
+    parser.add_argument(
+        "--metrics",
+        choices=["core", "all"],
+        default=None,
+        help="Scoring metrics: core (default: Correctness + Faithfulness) or all five",
+    )
     parser.add_argument("--manual", action="store_true", help="Alias for generate")
     parser.add_argument(
         "--method",
         choices=["vector", "bm25", "hybrid"],
         help="Answer retrieval method for generation (default: hybrid)",
+    )
+    parser.add_argument(
+        "--rerank",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="Rerank hybrid candidates with Cohere (default: enabled)",
     )
     parser.add_argument(
         "--candidate-limit",
@@ -59,14 +77,20 @@ def main() -> int:
         parser.error("--manual cannot be combined with score")
     if args.manual:
         args.stage = "generate"
+    if args.stage == "generate" and args.metrics is not None:
+        parser.error("--metrics applies only to all or score; generate does not score")
     if args.stage == "score" and (
-        args.method is not None or args.candidate_limit is not None
+        args.method is not None
+        or args.candidate_limit is not None
+        or args.rerank is not None
     ):
         parser.error(
             "Retrieval options apply only to generation; score uses saved answers"
         )
     try:
         validate_retrieval_options(args.method or "hybrid", args.candidate_limit)
+        if args.rerank and (args.method or "hybrid") != "hybrid":
+            raise ValueError("--rerank requires --method hybrid")
     except ValueError as error:
         parser.error(str(error))
     paths = [args.dataset, args.output]
@@ -80,13 +104,18 @@ def main() -> int:
             flush=True,
         )
         started = perf_counter()
-        rows = run_evaluation(
-            args.dataset,
-            args.output,
-            on_progress=_print_progress,
-            retrieval_method=method,
-            candidate_limit=args.candidate_limit,
-        )
+        try:
+            rows = run_evaluation(
+                args.dataset,
+                args.output,
+                on_progress=_print_progress,
+                retrieval_method=method,
+                candidate_limit=args.candidate_limit,
+                rerank=args.rerank is not False,
+                case_ids=args.case_ids,
+            )
+        except ValueError as error:
+            parser.error(str(error))
         failures = sum(row["error"] is not None for row in rows)
         print(
             f"\nSaved {len(rows)} answers to {args.output} "
@@ -97,13 +126,25 @@ def main() -> int:
             return 1 if failures else 0
 
     # Read the frozen answers so score never needs to run the RAG pipeline.
-    rows = load_cases(args.output, require_book_refs=False)
+    try:
+        rows = load_cases(args.output, require_book_refs=False, case_ids=args.case_ids)
+    except ValueError as error:
+        parser.error(str(error))
     print(
         f"\nPreparing {len(rows)} saved answers for DeepEval "
         f"(max concurrent: {args.max_concurrent})...",
         flush=True,
     )
-    scored = score_results(rows, args.results_folder, args.max_concurrent)
+    legacy_count = sum("answerable" not in row for row in rows)
+    if legacy_count:
+        print(
+            f"{legacy_count} saved cases have no answerable field; treating them as "
+            "answerable. Generate fresh answers to preserve dataset labels.",
+            flush=True,
+        )
+    scored = score_results(
+        rows, args.results_folder, args.max_concurrent, metrics=args.metrics or "core"
+    )
     for case_id, error in scored.errors.items():
         print(f"{case_id}: {error}", file=sys.stderr)
     return 0 if scored.success else 1

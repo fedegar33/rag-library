@@ -2,6 +2,8 @@
 
 ## 2026-10-21
 
+- **Evaluation gates:** Separated correctness and grounding requirements from retrieval diagnostics using native score-only metrics; unanswerable cases use correctness alone, with labels preserved for reproducible rescoring.
+- **Reranking candidates:** In the Church test, Cohere promoted explicit name evidence from RRF positions 41 and 51 to first and second; broader improvement remains unmeasured.
 - **Judge selection:** User review found GPT-5.4 handled the selected name, timeframe, and abstention cases better; reported full-run cost of about $2.20 motivates selective rescoring.
 - **Judge calibration:** Explicit steps were recorded in run 7 and Hanratty passed, but several explanations still penalized verbosity; rubric compliance remains unreliable on the reviewed cases.
 - **Evidence annotation:** Drafting narrative evaluation cases exposed why gold answers must preserve plans, timing, and exceptions; Church’s purring passage qualifies its initial apparent absolute.

@@ -65,7 +65,14 @@ uv run deepeval inspect --run-id 1
 ```
 
 The default evaluation stage is `all`; `--manual` aliases `generate`.
-Generation replaces the answers file, and scoring appends a DeepEval run.
+Generation replaces the answers file; scoring appends one DeepEval run per
+nonempty answerability group. Core scoring runs Correctness and Faithfulness;
+`--metrics all` adds score-only retrieval diagnostics. Answerable cases require
+both core metrics at 0.7; unanswerable cases require Correctness only, with
+Faithfulness score-only. Use native `threshold=None`, not synthetic pass scores.
+Save boolean `answerable` with answers and in scoring metadata; legacy rows
+without it use the answerable rule with a CLI notice. Never infer labels from
+expected-answer wording or reload mutable dataset labels during scoring.
 
 Offline tests and code checks:
 
@@ -203,15 +210,29 @@ uses equal contributions, one-based ranks, constant 60, and identity
 `(book_id, chunk_index)`. Keep branch ranks/raw scores for verbose inspection;
 empty branches are valid but branch failures must propagate. AgentContext owns
 the retrieval method and candidate depth, defaulting to hybrid; the model still
-supplies only the content question. Agents return five fused passages by default.
+supplies only the content question. Agents return five reranked passages by default.
 Eval generation accepts `--method vector|bm25|hybrid` (default hybrid) and optional
 `--candidate-limit` (hybrid only, at least 5). Save effective retrieval settings
 in answer rows and DeepEval metadata. Score-only reads frozen answers and rejects
 retrieval overrides; do not infer a method for historical rows without metadata.
+Eval CLI accepts repeated `--id` for exact case selection in all stages and
+`--manual`. Reject unknown IDs before model calls or output writes; preserve
+dataset order and execute repeated IDs once. Generation saves only selected
+cases, replacing its output as usual; score-only filters saved rows in memory.
 Direct `ask`/`ask_question`/`BookRetriever` remain vector by default and support
 explicit method selection; CLI `ask` also accepts `--candidate-limit` for hybrid.
-Reranking, automated retrieval evidence metrics, and persistent lexical indexing
-remain deferred.
+Hybrid reranking defaults to true through AgentContext, BookRetriever, answering,
+evaluation generation, and search. It requires `COHERE_API_KEY` and applies
+Cohere `rerank-v5.0-pro` to the entire deduplicated candidate union before final
+top-k, preserving source identity, branch scores/ranks, RRF score, and original
+RRF rank. API response indexes map to supplied candidates, never by text; API
+failures must propagate. CLI search/ask/eval accept `--no-rerank` for the RRF
+baseline; Python callers use `rerank=False`. Non-hybrid methods do not call Cohere.
+Save effective `rerank` and `rerank_model` in eval retrieval metadata. Score-only
+rejects reranking overrides and reads the saved values. Candidate depth remains
+20 per method by default; use 100 explicitly to reproduce the Church experiment.
+Keep answer generation instructions unchanged.
+Automated retrieval evidence metrics and persistent lexical indexing remain deferred.
 Unnumbered story sections are retained unless positively identified as auxiliary.
 
 ## Technology principles

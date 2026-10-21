@@ -1,7 +1,7 @@
 """Small, sequential agent evaluation for manual review; no automated scoring."""
 
 import json
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from time import perf_counter
@@ -11,6 +11,7 @@ from rag_library.agent.context import AgentContext, validate_retrieval_options
 from rag_library.agent.models import AgentResult
 from rag_library.catalog import get_books_by_refs, validate_book_refs
 from rag_library.rag.hybrid_search import DEFAULT_CANDIDATE_LIMIT, RRF_CONSTANT
+from rag_library.rag.reranking import RERANK_MODEL
 from rag_library.rag.search import RetrievalMethod
 
 
@@ -34,7 +35,12 @@ def get_retrieval_context(response: AgentResult) -> list[str]:
     ]
 
 
-def load_cases(dataset_path: Path, *, require_book_refs: bool = True) -> list[dict]:
+def load_cases(
+    dataset_path: Path,
+    *,
+    require_book_refs: bool = True,
+    case_ids: Sequence[str] | None = None,
+) -> list[dict]:
     """Read the curated question set shared by manual and DeepEval runners."""
     cases = json.loads(Path(dataset_path).read_text(encoding="utf-8"))
     if not isinstance(cases, list) or not cases:
@@ -51,6 +57,17 @@ def load_cases(dataset_path: Path, *, require_book_refs: bool = True) -> list[di
         ids.add(case["id"])
         if require_book_refs or "book_refs" in case:
             validate_book_refs(case.get("book_refs"))
+        if "answerable" in case and type(case["answerable"]) is not bool:
+            raise ValueError(f"Case {case['id']} needs a boolean answerable field")
+    if case_ids is not None:
+        selected = set(case_ids)
+        if not selected:
+            raise ValueError("Select at least one case ID")
+        missing = selected - ids
+        if missing:
+            raise ValueError(f"Unknown case IDs: {', '.join(sorted(missing))}")
+        # Preserve dataset order and run each case only once, even for repeated IDs.
+        cases = [case for case in cases if case["id"] in selected]
     return cases
 
 
@@ -61,6 +78,8 @@ def run_evaluation(
     on_progress: Callable[[EvaluationProgress], None] | None = None,
     retrieval_method: RetrievalMethod = "hybrid",
     candidate_limit: int | None = None,
+    rerank: bool = True,
+    case_ids: Sequence[str] | None = None,
 ) -> list[dict]:
     """Run a fresh manual evaluation, saving completed cases after each question.
 
@@ -73,7 +92,7 @@ def run_evaluation(
     output_path = Path(output_path)
     if dataset_path.resolve() == output_path.resolve():
         raise ValueError("Results must be saved separately from the question set")
-    cases = load_cases(dataset_path)
+    cases = load_cases(dataset_path, case_ids=case_ids)
 
     agent = get_agent()
     results = []
@@ -87,6 +106,7 @@ def run_evaluation(
             key: case[key] for key in ("id", "question", "expected_answer", "book_refs")
         }
         row.update(
+            answerable=case.get("answerable", True),
             actual_answer=None,
             tool_calls=[],
             retrieval_context=[],
@@ -100,6 +120,10 @@ def run_evaluation(
                 if retrieval_method == "hybrid"
                 else None,
                 "rrf_constant": RRF_CONSTANT if retrieval_method == "hybrid" else None,
+                "rerank": rerank if retrieval_method == "hybrid" else False,
+                "rerank_model": RERANK_MODEL
+                if retrieval_method == "hybrid" and rerank
+                else None,
             },
         )
         try:
@@ -107,6 +131,7 @@ def run_evaluation(
                 books=tuple(get_books_by_refs(case["book_refs"])),
                 retrieval_method=retrieval_method,
                 candidate_limit=candidate_limit,
+                rerank=rerank,
             )
             row["book_ids"] = context.book_ids
             row["attached_books"] = list(context.books)

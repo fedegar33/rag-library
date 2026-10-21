@@ -8,11 +8,10 @@ The `sematary-11` placeholder was replaced with the reviewed burial-plan questio
 The expanded Ludlow excerpt includes Louis Creed's name; added display quotation
 marks were removed so the excerpt remains exact EPUB text.
 
-The current runner executes every case in this file and does not interpret
-`answerable`, `category`, or `review_status`. Unanswerable cases therefore still
-receive the existing metric suite without special handling; interpret their
-retrieval scores separately and calibrate refusal scoring before using aggregate
-scores as a quality gate. This expanded dataset establishes a new baseline.
+The runner executes all cases unless filtered with `--id`. It preserves boolean
+`answerable` labels for grouped scoring; `category` and `review_status` remain
+human annotations. Answerable and unanswerable cases receive separate DeepEval
+reports and stored runs with the success rules described below.
 
 ## Expanded dataset for manual review
 
@@ -67,7 +66,9 @@ Reference evidence and answer notes are for dataset review and future retrieval
 checks. The current runner passes only the question and attached-book context to
 the agent; DeepEval's `retrieval_context` still contains only passages actually
 retrieved at runtime. These new reference fields do not currently enter judge
-prompts, saved answer rows, or DeepEval metadata. In particular, `answer_notes`
+prompts. `answerable` is saved with answers and copied into DeepEval metadata to
+select the scoring rule. Other reference annotations stay out of saved answer
+rows and judge metadata. In particular, `answer_notes`
 does not automatically change scoring behavior. Judge calibration remains a
 separate task.
 
@@ -130,12 +131,27 @@ is absent. Keep gold evidence out of search queries and runtime context.
 BM25 indexes existing chunks in memory over the attached books together, using
 lowercase English tokens, English stopwords, and no stemming. It uses no model
 calls; vector and hybrid each make a query embedding request. Automated retrieval
-evidence metrics and additional reranking are deferred.
+evidence metrics remain deferred. Hybrid additionally calls Cohere's
+`rerank-v5.0-pro` by default; use `--no-rerank` for RRF alone.
 
 ## Compare agent answers with hybrid retrieval
 
+For a cheaper single-case experiment, select the Church question directly:
+
+```bash
+uv run python eval.py all --id sematary-05 --candidate-limit 100 --max-concurrent 1 --output evals/results/church/answers.json
+```
+
+Repeat `--id` to select multiple cases. Exact IDs work in `all`, `generate`,
+`--manual`, and `score`; score-only selects from saved answers. Unknown IDs fail
+before model calls, and repeated IDs run once in dataset order. Generation
+replaces its output with the selected cases; use a separate file to retain your
+full-run answers. `--max-concurrent 1` reduces parallel judge calls, but provider
+rate limits can still apply.
+
 The agent and evaluation generation now default to hybrid retrieval: up to 20
-candidates from each method, equal-contribution RRF with constant 60, and five
+candidates from each method, equal-contribution RRF with constant 60, Cohere
+reranking over the full candidate union, and five
 final passages supplied to the answer model. The model chooses only the content
 question; attachments and retrieval settings are application-owned.
 
@@ -143,6 +159,7 @@ Save comparison runs to separate answer files:
 
 ```bash
 uv run python eval.py all --method hybrid --candidate-limit 20 --output evals/results/hybrid/answers.json
+uv run python eval.py all --method hybrid --candidate-limit 20 --no-rerank --output evals/results/rrf/answers.json
 uv run python eval.py all --method vector --output evals/results/vector/answers.json
 ```
 
@@ -154,8 +171,10 @@ rubric fixed; context headers identify the applicable score type instead of
 treating RRF scores as cosine similarities.
 
 Each new answer row records `retrieval.method`, `top_k`, effective
-`candidate_limit`, and `rrf_constant`. Source records preserve original scores
-and branch ranks. DeepEval metadata copies the saved retrieval settings; judge
+`candidate_limit`, `rrf_constant`, effective `rerank`, and `rerank_model`.
+Source records preserve original scores
+and branch ranks, plus rerank scores and prior RRF positions when enabled.
+DeepEval metadata copies the saved retrieval settings; judge
 retrieval context still contains only passages actually supplied at runtime.
 Historical results without retrieval settings remain readable and are not
 retroactively labeled.
@@ -172,6 +191,23 @@ replaces `basic_result.json`; use distinct output files to retain comparisons.
 
 ## Answer Correctness rubric — explicit evaluation steps
 
+Scoring defaults to `--metrics core` (Correctness and Faithfulness); `--metrics all`
+adds the three retrieval metrics. Answerable cases require both core scores to
+reach 0.70. Unanswerable cases require only Correctness; Faithfulness is score-only.
+Retrieval metrics always use `threshold=None`, preserving scores/reasons while
+leaving case pass/fail unchanged. DeepEval displays `NONE` verdicts and `N/A`
+pass rates for these diagnostics. Each nonempty group creates its own report
+and stored run, labeled `answerable` or `unanswerable` in case metadata.
+
+Legacy answer files without `answerable` are treated as answerable with a CLI
+notice, without consulting the current dataset or guessing from answer wording.
+Generate fresh answers to preserve the labels; scoring never edits frozen files.
+
+DeepEval 4.3.0's terminal report and raw stored metric rows support score-only
+metrics. Its legacy `metrics_scores` aggregate counts verdict-less rows as
+errors; use raw metric rows when comparing stored diagnostic scores, rather than
+that legacy aggregate. A `NONE` metric verdict alone is not a judge failure.
+
 On 2026-10-21, Answer Correctness switched from prose `criteria` with generated
 steps to explicit `evaluation_steps`. The expected answer defines the minimum
 requested facts, not a required response format. Equivalent wording, complete
@@ -184,9 +220,9 @@ Correctness still receives only the question, actual answer, and expected answer
 It does not verify extra claims using outside knowledge or retrieved passages;
 Faithfulness separately evaluates support from the actual retrieval context.
 `answer_notes`, `answerable`, and reference evidence are not newly injected into
-the judge. The judge model, 0.7 threshold, and other metric configurations are
-unchanged. Built-in retrieval metrics still need separate handling/calibration
-for unanswerable cases.
+the judge prompts. The judge model, correctness threshold, and correctness steps
+are unchanged by the new success rules. Retrieval scores for unanswerable cases
+are diagnostic and need separate interpretation.
 
 To isolate this rubric change, rescore the same saved outputs:
 
@@ -195,7 +231,8 @@ uv run python eval.py score
 ```
 
 Use `--output` if the frozen answers are stored elsewhere. This does not regenerate
-answers or retrieve again; it reruns all five judges and appends a DeepEval run.
+answers or retrieve again; it reruns the selected metrics and appends one
+DeepEval run per nonempty answerability group.
 Judge outputs can vary even with unchanged configurations. A score increase after
 rescoring is a measurement change, not evidence that retrieval improved. Establish
 a new scoring baseline after checking agreement with human-reviewed examples.

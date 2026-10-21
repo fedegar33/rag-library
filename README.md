@@ -179,7 +179,8 @@ cosine similarities do not enter the fusion formula. Ties use book ID and chunk
 index for repeatable ordering. RRF scores are not confidence probabilities.
 See the [original RRF paper](https://cormack.uwaterloo.ca/cormacksigir09-rrf.pdf).
 
-Compact output shows the RRF score and provenance. `--verbose` also shows each
+With `--no-rerank`, compact output shows the RRF score and provenance.
+`--verbose` also shows each
 branch's rank, cosine similarity, BM25 score, and the complete text; `None` means
 the chunk was absent from that branch's candidate list. An empty branch is valid
 and the other branch's ranks still contribute. A branch error fails the command
@@ -189,8 +190,29 @@ answer and changes no stored data.
 
 The agent and full-agent evaluation runner use hybrid retrieval by default.
 Direct `ask` remains vector by default and supports explicit method selection.
-Additional reranking, automated retrieval evidence metrics, and persistent lexical
-indexing remain deferred.
+
+To test Cohere reranking in the search CLI, set `COHERE_API_KEY` in `.env` and run:
+
+```bash
+uv run python -m rag_library.cli.search "What is Church the cat's full name?" --book-id 18 --method hybrid --candidate-limit 100 --limit 5 --rerank --verbose
+```
+
+Replace `18` with your catalog's book ID. Hybrid reranking is enabled by default;
+use `--no-rerank` for the RRF baseline. This step sends the question and the full
+text of all distinct retrieved
+chunks to Cohere's `rerank-v5.0-pro`: up to 200 chunks with 100 candidates per
+method. It runs before the final five-chunk cutoff, so passages with low RRF
+ranks can still be selected. It cannot recover passages absent from both
+candidate lists. This adds one external API request; Cohere usage limits and
+charges apply to your account. API errors fail the command without falling back.
+
+Output shows the rerank score; `--verbose` also preserves the original RRF rank,
+RRF score, both branch ranks/scores, and source identity. Rerank scores are
+separate from RRF scores. Hybrid search, answering, agent tools, and evaluation
+generation enable reranking by default. Vector and BM25 remain independent of
+Cohere. Use `--no-rerank` in search/ask/eval commands or `rerank=False` in Python
+to compare with RRF alone. Answer generation instructions are unchanged.
+Automated retrieval evidence metrics and persistent lexical indexing remain deferred.
 
 ## Ask questions about ingested books
 
@@ -214,7 +236,8 @@ output label RRF scores explicitly instead of treating them as cosine similarity
 ## Book agent
 
 `POST /agent` answers one independent message using a LangChain agent with
-two tools, `list_books` and `answer_book_question`. Set `DATABASE_URL` and `OPENAI_API_KEY`; the agent uses
+two tools, `list_books` and `answer_book_question`. Set `DATABASE_URL`, `OPENAI_API_KEY`,
+and `COHERE_API_KEY`; the agent uses
 `OPENAI_CHAT_MODEL` (default: `gpt-4o-mini`). Start the API as described above,
 then send a request:
 
@@ -229,10 +252,13 @@ That catalog includes each book's `content_sha256`. The API requires one or more
 positive integer IDs in every request and validates all attachments before
 initializing the agent. Missing, empty, or unknown IDs return HTTP 422.
 The answer tool uses hybrid retrieval by default: 20 candidates per branch,
-equal-contribution RRF with constant 60, and five final passages. Retrieval method
+equal-contribution RRF with constant 60, Cohere reranking of the full union, and
+five final passages. Retrieval method
 and depth belong to `AgentContext`, alongside book attachments; the model cannot
 select them. Notebook callers can set `retrieval_method="vector"` or `"bm25"`
 when constructing a context, or set `candidate_limit` for hybrid experiments.
+Set `rerank=False` on the context for the RRF baseline. The candidate default is
+still 20 per method; set `candidate_limit=100` to reproduce the Church experiment.
 The caller keeps the selected IDs between requests; the backend does not persist
 chats or attachment state.
 
@@ -361,22 +387,41 @@ configured, run from the repository root:
 uv run python eval.py
 ```
 
-Generation now uses hybrid retrieval by default. Save separate snapshots for
+Generation now uses hybrid retrieval with Cohere reranking by default.
+Save separate snapshots for
 comparison with vector-only retrieval:
 
 ```bash
 uv run python eval.py all --method hybrid --candidate-limit 20 --output evals/results/hybrid/answers.json
+uv run python eval.py all --method hybrid --candidate-limit 20 --no-rerank --output evals/results/rrf/answers.json
 uv run python eval.py all --method vector --output evals/results/vector/answers.json
 ```
 
 `--method bm25` is also available. Final context remains five passages; hybrid
 candidate depth defaults to 20 per method and explicit depths must be at least
 five. The dataset, system instructions, and judge rubric are unchanged.
+To reproduce the successful Church search's candidate depth, use
+`--candidate-limit 100`. Keep this depth the same in reranked and RRF runs.
+
+Run a single case with `--id`, or repeat the flag for several exact IDs:
+
+```bash
+uv run python eval.py all --id sematary-05 --candidate-limit 100 --max-concurrent 1 --output evals/results/church/answers.json
+uv run python eval.py generate --id sematary-04 --id sematary-05 --output evals/results/selected/answers.json
+uv run python eval.py score --id sematary-05 --output evals/results/church/answers.json --max-concurrent 1
+```
+
+Selection works in `all`, `generate`, and `score`, including `--manual`.
+IDs must match exactly, including leading zeros. Unknown IDs fail before model
+calls; repeated IDs run once in dataset order. Generation replaces the chosen
+answers file with only the selected cases, so use a separate `--output` to keep
+full-run answers. Score-only filters saved answers without modifying them.
+`--max-concurrent 1` reduces parallel judge calls; it does not impose a provider
+requests-per-minute limit.
 
 The runner reads `evals/basic.json`: 29 reviewed English questions about Pet
-Sematary (27 answerable and two unanswerable). Unanswerable cases currently use
-the existing metric suite without special handling; interpret their retrieval
-scores separately. One additional question remains in the review draft.
+Sematary (27 answerable and two unanswerable). These groups use separate native
+DeepEval reports and stored runs. One additional question remains in the review draft.
 It calls the full agent independently for each question, including tool selection
 and query rewriting, then passes the entire batch to DeepEval’s `evaluate()`
 Python API. No pytest runner or parametrization is involved. The source JSON
@@ -389,13 +434,17 @@ the eval references. A different EPUB edition or modified file has another hash.
 Before each invocation, references resolve to current IDs; missing references
 fail that case explicitly. Questions contain only the content question.
 
-Generated answers save `book_refs`, resolved `book_ids`, `attached_books`, and
-`retrieval` settings (method, final top-k, effective candidate depth, RRF constant).
+Generated answers save `answerable`, `book_refs`, resolved `book_ids`, `attached_books`, and
+`retrieval` settings (method, final top-k, effective candidate depth, RRF constant,
+reranking enabled, and reranker model).
 The same fields enter DeepEval case metadata, alongside tool records containing
 source scores and branch ranks.
 Rescoring uses the saved answers and scope without resolving or retrieving again;
 Older answer files remain scoreable but do not acquire missing attachment or
 retrieval metadata. Regenerate answers to evaluate a changed retrieval method.
+Files without `answerable` remain scoreable as answerable cases with a CLI
+notice; labels are never inferred from expected-answer wording or a changed
+dataset. Generate fresh answers to preserve explicit dataset labels.
 
 Each response becomes an `LLMTestCase`: the original question is `input`, the
 expected answer is `expected_output`, the final agent answer is `actual_output`,
@@ -412,8 +461,14 @@ Cases with agent errors or missing passages stay in the saved results as failed
 cases, without judge scores, and cause a nonzero exit status. Judge errors are
 also recorded as failures while the remaining metrics/cases continue.
 
-The five metrics use an initial **0.7 threshold**, defined in
-`src/rag_library/deepeval_evaluation.py`:
+Scoring defaults to `--metrics core`: Answer Correctness and Faithfulness.
+Use `--metrics all` in `all` or `score` to include retrieval diagnostics:
+
+```bash
+uv run python eval.py score --id sematary-05 --output evals/results/church/answers.json --metrics all --max-concurrent 1
+```
+
+Thresholds are defined in `src/rag_library/deepeval_evaluation.py`:
 
 | Metric | What it checks |
 | --- | --- |
@@ -423,7 +478,15 @@ The five metrics use an initial **0.7 threshold**, defined in
 | Faithfulness | Whether the final answer is grounded in the retrieved content |
 | Answer correctness (G-Eval) | Whether the final answer matches the expected facts, allowing paraphrases |
 
-Every metric must pass for a question to pass. These initial thresholds and judge
+Answerable cases pass when both Correctness and Faithfulness reach **0.70**.
+Unanswerable cases pass based on Correctness alone; Faithfulness is score-only.
+With `--metrics all`, all three retrieval metrics are score-only in both groups.
+DeepEval's native `threshold=None` preserves scores/reasons without pass/fail
+verdicts; terminal rows display `NONE` and aggregate pass rates display `N/A`.
+Each nonempty group creates a separate native report under
+`evals/results/answerable/` or `evals/results/unanswerable/` and a separate
+SQLite run. The command succeeds only when all scored cases in both groups pass
+and no generation/context errors exist. These initial thresholds and judge
 scores are a starting point for iteration, not an objective measure of quality.
 The curated answers are the correctness reference: review ambiguous questions
 and incorrect references before interpreting failures as RAG regressions.
@@ -431,7 +494,7 @@ and incorrect references before interpreting failures as RAG regressions.
 The judge defaults to `OPENAI_CHAT_MODEL`. Override it independently in `.env`:
 
 ```dotenv
-EVAL_JUDGE_MODEL=gpt-4o-mini
+EVAL_JUDGE_MODEL=gpt-5.4
 ```
 
 The judge uses `OPENAI_API_KEY`. Running the suite incurs agent, retrieval, and
@@ -454,7 +517,7 @@ DEEPEVAL_LOCAL_STORE=sqlite
 DEEPEVAL_RESULTS_FOLDER=evals/results
 ```
 
-Each scoring run is appended to `evals/results/deepeval.db`, including cases,
+Each scoring group's run is appended to `evals/results/deepeval.db`, including cases,
 metric scores, reasons, and tool-call metadata. No custom scored JSON export is
 written. The answers file remains JSON for independent re-scoring. Change the
 runner's database folder with `--results-folder`; use the same
@@ -529,6 +592,7 @@ uv run python eval.py all \
 | `--output` | `evals/basic_result.json` | Write generated answers or read saved answers for scoring |
 | `--results-folder` | `evals/results` | DeepEval result database folder |
 | `--max-concurrent` | `20` | Maximum concurrent scoring tasks; must be positive |
+| `--metrics` | `core` | Core answer metrics, or `all` including score-only retrieval diagnostics; scoring stages only |
 | `--manual` | Disabled | Alias for `generate`; cannot be combined with `score` |
 
 The legacy alias can also be run explicitly:

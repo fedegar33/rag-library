@@ -58,6 +58,8 @@ def _documents_to_results(documents) -> list[SearchResult]:
             rrf_score=document.metadata.get("rrf_score"),
             vector_rank=document.metadata.get("vector_rank"),
             bm25_rank=document.metadata.get("bm25_rank"),
+            rerank_score=document.metadata.get("rerank_score"),
+            rrf_rank=document.metadata.get("rrf_rank"),
         )
         for document in documents
     ]
@@ -70,6 +72,7 @@ def ask_question(
     book_ids: list[int],
     method: RetrievalMethod = "vector",
     candidate_limit: int | None = None,
+    rerank: bool = True,
 ) -> AskResponse:
     """Answer one question using the most relevant book chunks."""
     question = question.strip()
@@ -83,6 +86,7 @@ def ask_question(
         book_ids=book_ids,
         method=method,
         candidate_limit=candidate_limit,
+        rerank=rerank,
     ).invoke(question)
     sources = _documents_to_results(documents)
     if not documents:

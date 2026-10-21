@@ -5,6 +5,7 @@ from dataclasses import replace
 
 from rag_library.catalog import normalize_book_ids
 from rag_library.rag.keyword_search import bm25_search
+from rag_library.rag.reranking import get_rerank_api_key, rerank_results
 from rag_library.rag.search import SearchResult, semantic_search
 
 RRF_CONSTANT = 60
@@ -68,8 +69,9 @@ def hybrid_search(
     *,
     book_ids: Sequence[int],
     candidate_limit: int | None = None,
+    rerank: bool = True,
 ) -> list[SearchResult]:
-    """Retrieve deeper candidates in both branches, then return fused top-k.
+    """Retrieve both branches, optionally reranking their full union before top-k.
 
     Both branches receive the same query and filters. Empty lists are valid;
     exceptions propagate so branch failures cannot silently look successful.
@@ -88,6 +90,15 @@ def hybrid_search(
     if depth < limit:
         raise ValueError("Candidate limit must be at least the search limit")
 
+    api_key = get_rerank_api_key() if rerank else None
     vector_results = semantic_search(query, depth, chapters, book_ids=selected_ids)
     bm25_results = bm25_search(query, depth, chapters, book_ids=selected_ids)
+    if api_key is not None:
+        # Keep the entire union: a useful passage may sit below the RRF cutoff.
+        pool = reciprocal_rank_fusion(
+            vector_results,
+            bm25_results,
+            max(1, len(vector_results) + len(bm25_results)),
+        )
+        return rerank_results(query, pool, limit, api_key=api_key)
     return reciprocal_rank_fusion(vector_results, bm25_results, limit)
