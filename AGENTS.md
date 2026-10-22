@@ -18,9 +18,25 @@ and UI styling unless they establish a substantive AI engineering lesson.
 
 ### Commands that exist today
 
-Run commands from the repository root with `uv`. Use `uv run python` for
+Run Python commands from the repository root with `uv`. Use `uv run python` for
 Python modules and scripts so they use the project's environment; no manual
 virtual-environment activation is needed.
+
+The independent Next.js frontend lives in `web/`, managed with pnpm. Read
+`web/AGENTS.md` before changing frontend files. Root guidance applies across
+the repository; Python keeps its existing root layout.
+
+Shared commands from the repository root:
+
+```bash
+make setup       # Install both apps' locked dependencies
+make api         # API development server, separate terminal
+make web         # Next.js development server, separate terminal
+make check       # Offline Python tests, Ruff, ESLint, TypeScript
+make check-api   # Backend checks only
+make check-web   # Frontend checks only
+make build       # Web production build
+```
 
 Setup, API, and notebooks:
 
@@ -94,10 +110,13 @@ uv run ruff format --check .
 - LangChain components for document splitting, retrieval integration, prompts,
   model calls, and a stateless catalog agent
 - OpenAI embeddings and chat models
+- Next.js App Router, React, TypeScript, Tailwind CSS v4, shadcn/ui, and
+  AI Elements in `web/`, with Node 24 and pnpm 10.33.2
 
-There is no frontend, AWS deployment, graph database, advanced agent workflow, or
-production ingestion service yet. Keep these as future options, not current
-architecture.
+The frontend is a starter page; API integration, live chat, streaming, book
+selection, conversation persistence, and LangChain.js are deferred. Python owns
+agent and retrieval behavior. There is no AWS deployment, graph database,
+advanced agent workflow, or production ingestion service yet.
 
 ## Project structure and conventions
 
@@ -111,12 +130,27 @@ each Python package also contains `__init__.py`):
 .
 ├── AGENTS.md
 ├── README.md
+├── Makefile                       # Setup, development, checks, web build
 ├── .env.example
 ├── .gitignore
 ├── .python-version
 ├── pyproject.toml
 ├── uv.lock
 ├── eval.py                         # Evaluation CLI entry point
+├── web/                            # Independent pnpm frontend
+│   ├── AGENTS.md                   # Frontend-specific conventions
+│   ├── README.md
+│   ├── .env.example
+│   ├── .node-version
+│   ├── package.json
+│   ├── pnpm-lock.yaml
+│   ├── pnpm-workspace.yaml
+│   ├── components.json             # shadcn configuration
+│   └── src/
+│       ├── app/                    # Routes, layout, Tailwind styles
+│       ├── components/ui/          # shadcn primitives
+│       ├── components/ai-elements/ # AI Elements conversation component
+│       └── lib/
 ├── src/
 │   └── rag_library/
 │       ├── main.py                 # FastAPI setup and route registration

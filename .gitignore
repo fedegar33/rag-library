@@ -25,3 +25,8 @@ evals/results/
 .latest_test_run.json
 .temp_test_run_data.json
 .deepeval_telemetry.txt
+
+# Frontend dependencies and generated output
+node_modules/
+.next/
+*.tsbuildinfo

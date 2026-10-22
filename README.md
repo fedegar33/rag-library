@@ -1,25 +1,38 @@
-# RAG Library API
+# RAG Library
 
 A Python book catalog agent exposed through FastAPI, with EPUB ingestion and
-vector, BM25, and hybrid search CLI workflows. Managed with `uv`.
+vector, BM25, and hybrid search CLI workflows, plus a Next.js web starter.
+Python is managed with `uv`; the independent `web/` app uses pnpm.
 
 This is a learning and experimentation project for querying and analyzing books.
 Keep retrieval, chunking, persistence, prompts, and evaluation understandable,
 preserve book/chapter/chunk provenance, and add infrastructure when it solves a
-current problem. The current application has no frontend or production deployment.
+current problem. The web app currently displays a starter page; chat integration
+and production deployment are deferred.
 
 The stack uses FastAPI, SQLAlchemy 2.x, PostgreSQL with pgvector,
-LangChain components, and OpenAI embedding and chat models.
+LangChain components, and OpenAI embedding and chat models. The web starter
+uses Next.js App Router, TypeScript, Tailwind CSS v4, shadcn/ui, and AI Elements.
 
 ## Requirements
 
 - Python 3.12+
 - uv
+- Node.js 24 and pnpm 10.33.2 for the web app
 - PostgreSQL with the `pgvector` extension available for catalog and RAG workflows
 - An OpenAI API key for ingestion, vector/hybrid search, answering, and evaluation;
   catalog listing and BM25 search need only `DATABASE_URL`
 
 ## Setup
+
+Install both apps' locked dependencies from the repository root:
+
+```bash
+make setup
+```
+
+This runs `uv sync --locked` and `pnpm --dir web install --frozen-lockfile`.
+For backend-only work, `uv sync` remains sufficient.
 
 Copy `.env.example` to `.env` and fill in `DATABASE_URL` and `OPENAI_API_KEY`.
 Keep local books and notebook outputs out of source control.
@@ -44,6 +57,41 @@ uv run uvicorn rag_library.main:app --reload
 
 The API is available at <http://127.0.0.1:8000>. Interactive documentation is at `/docs`.
 
+## Run the web starter
+
+Run each app in its own terminal from the repository root:
+
+```bash
+make api
+```
+
+```bash
+make web
+```
+
+The web app is available at <http://localhost:3000>. It runs independently of
+the API and needs no database or model credentials yet. Optional future API
+configuration is documented in `web/.env.example`; copy it to `web/.env.local`
+when needed. `BACKEND_API_URL` is reserved for server-side calls and is currently
+unused. Keep backend secrets in the root `.env`.
+
+The starter includes an AI Elements empty state and shadcn primitives. Live
+chat, book selection, streaming, conversation history, and LangChain.js are
+deferred. Python owns agent execution and retrieval; the existing `/agent`
+endpoint remains stateless and non-streaming.
+
+| Command | Purpose |
+| --- | --- |
+| `make setup` | Install both apps' locked dependencies |
+| `make api` | Start the API development server |
+| `make web` | Start the Next.js development server |
+| `make check` | Run backend and frontend checks |
+| `make check-api` | Run offline Python tests and Ruff checks |
+| `make check-web` | Run ESLint and TypeScript checks |
+| `make build` | Build the web app for production |
+
+See [web/README.md](web/README.md) for frontend commands and component installation.
+
 ## Use Jupyter for experiments
 
 Jupyter is an optional development dependency for trying retrieval, prompt, and API ideas interactively. It is not required to run the service.
@@ -63,6 +111,10 @@ to reload `.env` and create a new agent. Notebook outputs are intentionally empt
 so credentials and catalog data are not committed.
 
 ## Verify
+
+Run `make check` to check both apps, and `make build` to verify the frontend
+production build. The frontend TypeScript check generates Next.js route types
+before checking, so it also works before the first build.
 
 Run the offline tests and code checks:
 
@@ -307,12 +359,27 @@ each Python package also contains `__init__.py`):
 .
 ├── AGENTS.md
 ├── README.md
+├── Makefile                       # Setup, development, checks, web build
 ├── .env.example
 ├── .gitignore
 ├── .python-version
 ├── pyproject.toml
 ├── uv.lock
 ├── eval.py                         # Evaluation CLI entry point
+├── web/                            # Independent pnpm frontend
+│   ├── AGENTS.md                   # Frontend-specific conventions
+│   ├── README.md
+│   ├── .env.example
+│   ├── .node-version
+│   ├── package.json
+│   ├── pnpm-lock.yaml
+│   ├── pnpm-workspace.yaml
+│   ├── components.json             # shadcn configuration
+│   └── src/
+│       ├── app/                    # Routes, layout, Tailwind styles
+│       ├── components/ui/          # shadcn primitives
+│       ├── components/ai-elements/ # AI Elements conversation component
+│       └── lib/
 ├── src/
 │   └── rag_library/
 │       ├── main.py                 # FastAPI setup and route registration
