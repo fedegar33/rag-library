@@ -4,18 +4,14 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from fastapi.testclient import TestClient
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import AIMessage
 from langchain_core.outputs import ChatGeneration, ChatResult
 
 from rag_library.agent.agent import build_agent, run_agent
 from rag_library.agent.context import AgentContext, create_agent_context
-from rag_library.agent.models import AgentResult
 from rag_library.agent.tools import answer_book_question, list_books
 from rag_library.catalog import get_books_by_refs
-from rag_library.main import app
-from rag_library.rag.answering import AskResponse
 from rag_library.rag.search import SearchResult
 
 
@@ -49,12 +45,11 @@ class AttachedContextTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             AgentContext(())
 
-    @patch(
-        "rag_library.agent.tools.ask_question", return_value=AskResponse("Evidence", [])
-    )
+    @patch("rag_library.agent.tools.BookRetriever")
     def test_graph_injects_hidden_scope_and_does_not_keep_previous_attachments(
         self, ask
     ):
+        ask.return_value.invoke.return_value = []
         responses = []
         for index in range(2):
             responses.extend(
@@ -83,12 +78,9 @@ class AttachedContextTests(unittest.TestCase):
         schema = answer_book_question.tool_call_schema.model_json_schema()
         self.assertEqual(set(schema["properties"]), {"question"})
 
-    @patch("rag_library.rag.answering.get_settings")
     @patch("rag_library.rag.answering.ChatOpenAI")
     @patch("rag_library.rag.retriever.hybrid_search")
-    def test_agent_uses_hybrid_and_preserves_lexical_only_source(
-        self, search, chat, settings
-    ):
+    def test_agent_uses_hybrid_and_preserves_lexical_only_source(self, search, chat):
         search.return_value = [
             SearchResult(
                 "Book",
@@ -104,10 +96,6 @@ class AttachedContextTests(unittest.TestCase):
                 rrf_rank=41,
             )
         ]
-        settings.return_value = SimpleNamespace(
-            openai_chat_model="unused", openai_api_key="unused"
-        )
-        chat.return_value.invoke.return_value = SimpleNamespace(content="Ludlow")
         agent = build_agent(
             ScriptedModel(
                 responses=[
@@ -140,14 +128,11 @@ class AttachedContextTests(unittest.TestCase):
         self.assertEqual(source["rerank_score"], 0.9)
         self.assertEqual(source["rrf_rank"], 41)
         self.assertIsNone(source["similarity"])
-        messages = chat.return_value.invoke.call_args.args[0].to_messages()
-        self.assertIn("RRF score: 0.016393", messages[1].content)
-        self.assertIn("Ludlow is the destination.", messages[1].content)
+        chat.assert_not_called()
 
-    @patch(
-        "rag_library.agent.tools.ask_question", return_value=AskResponse("Answer", [])
-    )
+    @patch("rag_library.agent.tools.BookRetriever")
     def test_agent_can_explicitly_use_vector_for_comparison(self, ask):
+        ask.return_value.invoke.return_value = []
         answer_book_question.func(
             question="Where?",
             runtime=SimpleNamespace(
@@ -155,8 +140,9 @@ class AttachedContextTests(unittest.TestCase):
             ),
         )
         ask.assert_called_once_with(
-            "Where?", book_ids=[7], method="vector", candidate_limit=None, rerank=True
+            k=5, book_ids=[7], method="vector", candidate_limit=None, rerank=True
         )
+        ask.return_value.invoke.assert_called_once_with("Where?")
 
     def test_invalid_retrieval_configuration_rejected_before_agent_execution(self):
         for method, depth in [
@@ -194,23 +180,3 @@ class AttachedContextTests(unittest.TestCase):
             create_agent_context([])
         with self.assertRaisesRegex(ValueError, "Unknown book IDs"):
             create_agent_context([99, 123])
-
-    @patch("rag_library.api.routes.get_agent")
-    @patch("rag_library.catalog.list_books", return_value=[book()])
-    @patch("rag_library.api.routes.run_agent", return_value=AgentResult("Answer", []))
-    def test_api_requires_valid_attachments_before_agent_initialization(
-        self, run, catalog, get
-    ):
-        client = TestClient(app)
-        for ids in [None, [], [0], [True], ["7"], [7, 99]]:
-            payload = {"message": "Where?"}
-            if ids is not None:
-                payload["book_ids"] = ids
-            self.assertEqual(client.post("/agent", json=payload).status_code, 422)
-        get.assert_not_called()
-        run.assert_not_called()
-        result = client.post("/agent", json={"message": "Where?", "book_ids": [7, 7]})
-        self.assertEqual(result.status_code, 200, result.text)
-        self.assertEqual(run.call_args.kwargs["context"].book_ids, [7])
-        with patch("rag_library.api.routes.list_books", return_value=[book()]):
-            self.assertEqual(client.get("/books").json()[0]["content_sha256"], "a" * 64)

@@ -16,9 +16,9 @@ Open http://localhost:3000. The starter runs without the API, database, or
 model credentials. `BACKEND_API_URL` is reserved for future server-side API
 calls and is not read yet. Keep model keys in the root `.env`.
 
-Run the API separately with `make api`. Existing `POST /agent` accepts
-`{ message, book_ids }` and returns `{ answer, tool_calls }`; it does not
-provide conversation history or a streaming AI SDK transport.
+Run the API separately with `make api`. `POST /chat` accepts
+`{ message, book_ids }` and streams AI SDK SSE events for text, tool activity,
+and sources. Frontend integration and conversation history remain deferred.
 
 ## Commands
 

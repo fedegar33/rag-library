@@ -228,7 +228,8 @@ The API requires nonempty `book_ids` and validates all attachments before model
 execution. `AgentContext` injects the attached books into tools; the model supplies
 only the content question. Retrieval pools top-k across attached IDs, retaining
 each source's book ID. The agent's `list_books` tool exposes only attachments;
-`GET /books` exposes the catalog to callers. The caller owns attachment state.
+`POST /chat` is the only application HTTP route; catalog listing uses the CLI.
+The caller owns attachment state.
 Eval cases use nonempty `book_refs` lists of exact EPUB `content_sha256` values,
 resolved to current numeric IDs at generation time and saved with answers.
 Direct `ask`/`search` commands can omit `--book-id` only for a singleton catalog.

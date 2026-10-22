@@ -24,13 +24,13 @@ Commit `pnpm-lock.yaml` with dependency changes.
   persistence, API calls, and LangChain.js are deferred.
 - Agent execution, retrieval, database access, and model credentials belong
   to Python. The AI SDK dependency supports AI Elements types; it does not
-  establish a second agent or a streaming backend contract.
+  establish a second agent. Python owns the streaming backend contract.
 - `.env.local` is local configuration. `BACKEND_API_URL` is reserved for future
   server-side calls and is currently unused. Never expose model keys through
   `NEXT_PUBLIC_*` variables. Keep model keys in the root `.env`.
 - Preserve book/chapter/chunk provenance when API integration is added.
-  Python `/agent` handles independent, non-streaming messages with explicit
-  book attachments.
+  Python `/chat` streams independent messages with explicit book attachments
+  using the AI SDK UI message SSE protocol.
 
 Run `make check-web` and `make build` for scaffold changes, and backend checks
 when changing Python code or the shared Makefile.

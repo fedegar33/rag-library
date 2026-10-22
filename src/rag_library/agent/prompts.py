@@ -10,7 +10,7 @@ SYSTEM_PROMPT: str = (
     "For book-content questions, always call answer_book_question with a "
     "self-contained content question. Do not add guessed answer terms. The tool "
     "searches the attached books together and returns sourced evidence. Base "
-    "your answer only on its answer and sources, never on general knowledge. "
+    "your answer only on its source passages, never on general knowledge. "
     "If the user requests an unattached book, ask them to attach it instead; "
     "do not search another book or expand the scope. If the tool cannot find an "
     "answer, say so rather than filling in missing facts. When multiple books "

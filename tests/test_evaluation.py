@@ -11,7 +11,6 @@ from rag_library.agent.context import AgentContext
 from rag_library.agent.models import AgentResult, ToolCallRecord
 from rag_library.agent.tools import answer_book_question
 from rag_library.evaluation import run_evaluation
-from rag_library.rag.answering import AskResponse
 from rag_library.rag.search import SearchResult
 
 
@@ -228,24 +227,23 @@ class EvaluationTests(unittest.TestCase):
             run_evaluation(self.dataset, self.output)
         get.assert_not_called()
 
-    @patch("rag_library.agent.tools.ask_question")
-    def test_book_tool_reuses_rag_and_preserves_provenance(self, ask):
-        ask.return_value = AskResponse(
-            "En Ludlow.",
-            [SearchResult("Cementerio de animales", 4, "Un pasaje", 0.8, 1, book_id=7)],
-        )
+    @patch("rag_library.rag.retriever.hybrid_search")
+    def test_book_tool_reuses_retrieval_and_preserves_provenance(self, search):
+        search.return_value = [
+            SearchResult("Cementerio de animales", 4, "Un pasaje", 0.8, 1, book_id=7)
+        ]
         result = answer_book_question.func(
             question="¿Dónde viven los Creed?",
             runtime=SimpleNamespace(context=AgentContext((self.book,))),
         )
-        ask.assert_called_once_with(
+        search.assert_called_once_with(
             "¿Dónde viven los Creed?",
+            limit=5,
             book_ids=[7],
-            method="hybrid",
             candidate_limit=None,
             rerank=True,
         )
-        self.assertEqual(result["answer"], "En Ludlow.")
+        self.assertNotIn("answer", result)
         self.assertEqual(result["sources"][0]["chapter_number"], 1)
         self.assertEqual(result["sources"][0]["chunk_index"], 4)
         self.assertEqual(result["sources"][0]["text"], "Un pasaje")

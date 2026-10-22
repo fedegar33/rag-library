@@ -77,8 +77,8 @@ unused. Keep backend secrets in the root `.env`.
 
 The starter includes an AI Elements empty state and shadcn primitives. Live
 chat, book selection, streaming, conversation history, and LangChain.js are
-deferred. Python owns agent execution and retrieval; the existing `/agent`
-endpoint remains stateless and non-streaming.
+deferred in the frontend. Python owns agent execution and retrieval;
+`POST /chat` provides the stateless streaming backend.
 
 | Command | Purpose |
 | --- | --- |
@@ -104,8 +104,8 @@ uv run jupyter lab
 ```
 
 Open `notebooks/01_catalog_agent.ipynb` using the project `.venv` kernel. It
-creates a fresh catalog agent with `get_agent()`, exercises the same response
-helper as `/agent`, and lets you inspect native messages, tool calls, and an
+creates a fresh catalog agent with `get_agent()`, exercises `run_agent()`,
+and lets you inspect native messages, tool calls, and an
 explicit follow-up conversation. No API server is needed. Re-run the setup cell
 to reload `.env` and create a new agent. Notebook outputs are intentionally empty
 so credentials and catalog data are not committed.
@@ -287,19 +287,19 @@ output label RRF scores explicitly instead of treating them as cosine similarity
 
 ## Book agent
 
-`POST /agent` answers one independent message using a LangChain agent with
+`POST /chat` streams one independent message using a LangChain agent with
 two tools, `list_books` and `answer_book_question`. Set `DATABASE_URL`, `OPENAI_API_KEY`,
 and `COHERE_API_KEY`; the agent uses
 `OPENAI_CHAT_MODEL` (default: `gpt-4o-mini`). Start the API as described above,
 then send a request:
 
 ```bash
-curl -X POST http://127.0.0.1:8000/agent \
+curl -N http://127.0.0.1:8000/chat \
   -H 'Content-Type: application/json' \
   -d '{"message": "Which town does the Creed family move to?", "book_ids": [1]}'
 ```
 
-Choose current IDs through `GET /books` (or `uv run python -m rag_library.cli.books`).
+Choose current IDs through `uv run python -m rag_library.cli.books`.
 That catalog includes each book's `content_sha256`. The API requires one or more
 positive integer IDs in every request and validates all attachments before
 initializing the agent. Missing, empty, or unknown IDs return HTTP 422.
@@ -314,21 +314,22 @@ still 20 per method; set `candidate_limit=100` to reproduce the Church experimen
 The caller keeps the selected IDs between requests; the backend does not persist
 chats or attachment state.
 
-Attachments enter an `AgentContext` in `agent/context.py`, passed to `run_agent()`.
+Attachments enter an `AgentContext` in `agent/context.py`, passed to the agent.
 LangChain injects this context into the tools; the model sees only the question
 argument on `answer_book_question`. Its `list_books` tool exposes only attached
-books. The separate `GET /books` endpoint exposes the whole catalog for selection.
+books. The HTTP API serves only `/chat`; catalog listing is available through
+the CLI until a frontend book-selection workflow is implemented.
 
-The model's final answer uses provider-native structured output with a strict
-Pydantic `AgentAnswer` schema. The server reads the validated `structured_response`
-and combines it with tool records; the model does not generate the tool log.
-The configured OpenAI model must support structured output together with tools.
-Invalid structured answers return HTTP 503, like other execution errors.
-The tool log comes from actual execution messages. Greetings can return an
-empty `tool_calls` list. Book-content questions use `answer_book_question`, a
-thin wrapper around the same `ask_question()` workflow used by the `ask` CLI.
-It retrieves five chunks and returns the grounded answer plus source passages
-with book ID/title, chapter, and chunk references in the tool log. The agent
+Chat uses plain-text model output so answer tokens stream directly. Evaluations
+and notebooks retain provider-native structured output through `get_agent()` and
+`run_agent()`, independent of HTTP routes. Tool events come from actual execution.
+Book-content questions use `answer_book_question`, a
+thin wrapper around `BookRetriever`. It retrieves five chunks and returns source
+passages with book ID/title, chapter, chunk references, and retrieval scores in
+the tool log. The tool makes no chat-model call: the agent writes the answer
+directly from these passages. A typical content question uses two agent model
+calls: tool selection, then answer generation. The standalone `ask_question()`
+workflow used by the `ask` CLI retains its own answer generation. The agent
 uses the attached IDs automatically. SQL filters with `book_id IN (...)`,
 then selects the five closest chunks across the pooled attachments. A book need
 not contribute a chunk to that global top five. Each source retains its own
@@ -338,17 +339,62 @@ has already chosen the books. Multiple attachments are supported per request.
 Answers are limited to the retrieved context.
 
 Messages must contain 1-4000 characters after trimming surrounding whitespace;
-invalid requests return HTTP 422. Database, provider, and execution-limit errors
-return HTTP 503 with `{"detail": "Agent service unavailable"}` and server logs.
+invalid requests return HTTP 422. Catalog and agent initialization failures
+return HTTP 503; execution failures after streaming starts emit an `error` event.
 Each request allows at most three model calls and two tool calls. Model calls
 have a 30-second timeout with automatic retries disabled. These limits apply
-to the outer agent; the existing RAG model and embedding calls inside the
-book-answer tool retain their provider defaults.
+to the agent; embedding and reranking calls retain their provider defaults.
 
-This JSON endpoint is for local experiments: it has no authentication,
-pagination, conversation history, or session persistence. `/` and `/health` do
-not initialize the agent or require credentials. The endpoint is also available
-in `/docs`.
+The API has no authentication, conversation history, or session persistence.
+FastAPI's `/docs` remains available for inspecting the chat request schema.
+
+### Streaming chat
+
+`POST /chat` accepts a `{message, book_ids}` body and streams an independent
+response using the same agent, tools, attachment scope, and limits. It disables
+structured model output so answer tokens can stream directly as plain text.
+It uses `agent.astream_events(version="v2")` and FastAPI `StreamingResponse`, with
+no additional dependencies or answer buffering.
+
+```bash
+curl -N http://127.0.0.1:8000/chat \
+  -H 'Content-Type: application/json' \
+  -d '{"message": "What is the full name of Church, the cat?", "book_ids": [1]}'
+```
+
+The SSE wire format follows the
+[AI SDK UI message stream protocol](https://ai-sdk.dev/docs/ai-sdk-ui/stream-protocol),
+with `Content-Type: text/event-stream` and `x-vercel-ai-ui-message-stream: v1`.
+Each frame is `data: <JSON>` followed by a blank line. Event types are defined
+by the `ChatEvent` union in `api/streaming.py`:
+
+| Event | Meaning |
+| --- | --- |
+| `start` | Assistant message begins; includes `messageId`. |
+| `tool-input-available` | Tool execution starts; includes `toolName`, parsed `input`, and `toolCallId`. |
+| `tool-output-available` | Tool completes; includes its `output` and matching `toolCallId`. |
+| `data-source` | One retrieved passage; `data` includes `toolCallId`, `book_id`, `book_title`, `chapter_number`, `chunk_index`, `text`, and retrieval scores. |
+| `text-start`, `text-delta`, `text-end` | A text block starts, streams `delta` strings, and ends; all carry the same block `id`. |
+| `finish` | Agent completed successfully. |
+| `error` | Execution failed; contains a generic `errorText` and ends the response. |
+
+The last frame is `data: [DONE]`. Tool IDs are opaque execution IDs, shared
+across tool and source events. Sources arrive when retrieval completes, before
+the agent generates its answer; these are retrieved evidence, not a claim that
+every passage was cited. The corpus has no page numbers. Text blocks stream as
+the outer model emits them, including any text preceding a tool call. Internal
+tool-model tokens, reasoning blocks, and partial tool-call arguments are filtered.
+
+Request and attachment errors remain HTTP 422; initialization failures remain
+HTTP 503. After streaming begins, execution failures use an SSE `error` event
+because the HTTP status has already been sent. Disconnects close the event
+iterator and cancel async graph execution; an already-running synchronous
+retrieval/provider call may finish in its worker thread.
+
+Frontend integration is deferred. Its transport must send `{message, book_ids}`
+instead of AI SDK's default messages body, and render custom `data-source` parts.
+The caller owns chat state and book attachments; no history, persistence, or
+authentication is added here.
 
 ## Project layout
 

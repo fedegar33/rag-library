@@ -19,14 +19,16 @@ from rag_library.agent.tools import answer_book_question, list_books
 from rag_library.config import get_settings
 
 
-def build_agent(model: str | BaseChatModel):
+def build_agent(model: str | BaseChatModel, *, structured_output: bool = True):
     """Build an agent with independent state and bounded execution per invocation."""
     return create_agent(
         model=model,
         tools=[list_books, answer_book_question],
         system_prompt=SYSTEM_PROMPT,
         context_schema=AgentContext,
-        response_format=ProviderStrategy(AgentAnswer, strict=True),
+        response_format=(
+            ProviderStrategy(AgentAnswer, strict=True) if structured_output else None
+        ),
         middleware=[
             ModelCallLimitMiddleware[AgentContext, AgentAnswer](
                 run_limit=3, exit_behavior="error"
@@ -38,7 +40,7 @@ def build_agent(model: str | BaseChatModel):
     )
 
 
-def get_agent():
+def get_agent(*, structured_output: bool = True):
     """Create a fresh configured agent for the API or notebook experiments."""
     settings = get_settings()
     return build_agent(
@@ -48,6 +50,7 @@ def get_agent():
             timeout=30,
             max_retries=0,
         ),
+        structured_output=structured_output,
     )
 
 

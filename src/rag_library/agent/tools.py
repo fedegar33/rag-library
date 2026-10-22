@@ -1,13 +1,12 @@
 """Agent tools backed by the reusable catalog and RAG workflows."""
 
-from dataclasses import asdict
 from typing import Any, TypedDict
 
 from langchain.tools import ToolRuntime, tool
 
 from rag_library import catalog
 from rag_library.agent.context import AgentContext
-from rag_library.rag.answering import ask_question
+from rag_library.rag.retriever import BookRetriever
 
 
 class ListBooksResult(TypedDict):
@@ -24,17 +23,21 @@ def list_books(runtime: ToolRuntime[AgentContext]) -> ListBooksResult:
 def answer_book_question(
     question: str, runtime: ToolRuntime[AgentContext]
 ) -> dict[str, Any]:
-    """Answer a content question using only the attached books, with source passages.
+    """Retrieve evidence to answer a content question from the attached books.
 
     Book scope is supplied by the application. Supply only the question; do not
     choose book IDs, infer attachments, or add guessed answer terms.
     """
-    return asdict(
-        ask_question(
-            question,
-            book_ids=runtime.context.book_ids,
-            method=runtime.context.retrieval_method,
-            candidate_limit=runtime.context.candidate_limit,
-            rerank=runtime.context.rerank,
-        )
-    )
+    documents = BookRetriever(
+        k=5,
+        book_ids=runtime.context.book_ids,
+        method=runtime.context.retrieval_method,
+        candidate_limit=runtime.context.candidate_limit,
+        rerank=runtime.context.rerank,
+    ).invoke(question)
+    return {
+        "sources": [
+            {**document.metadata, "text": document.page_content}
+            for document in documents
+        ]
+    }
