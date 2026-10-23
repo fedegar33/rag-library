@@ -19,12 +19,24 @@ approved dark palette, typography, layout, and interaction conventions.
 ## Structure and scope
 
 - Keep routes/layouts in `src/app/`, shadcn primitives in `src/components/ui/`,
-  AI Elements in `src/components/ai-elements/`, and frontend helpers in
+  app-specific chat components in `src/components/`, and frontend helpers in
   `src/lib/`. Use the `@/*` import alias.
+- Keep small, private components together when that improves readability.
+  Extract them for an independent responsibility, reuse, or a clearer parent
+  file; avoid arbitrary line limits and premature abstractions.
 - Use strict TypeScript, Tailwind CSS v4, and existing shadcn theme tokens.
   Prefer Server Components; add client boundaries for interactive behavior.
-- Add individual shadcn or AI Elements components as needed through their
-  registries; do not install the entire component catalog by default.
+- Add individual shadcn components through their registry as needed; compose
+  AI Elements patterns directly from `components/ui/` primitives. Do not restore
+  compatibility wrappers or install the entire component catalog by default.
+- Use Message Scroller for transcript position, Message/Bubble for turns,
+  Input Group for the composer, and Trace for discreet tool status lines.
+  Streamdown renders assistant Markdown; tools keep structured result views.
+  Keep Python execution and SDK chat state separate from presentation.
+- Preserve chronological model text and tool activity. Catalog result views
+  wait for the assistant turn to settle; tool completion and text-end alone
+  must not release cards. Keep valid results after later interruption. Show
+  the catalog count in the tool status, and never synthesize agent narration.
 - The UI consumes Python `/chat` through the same-origin Next.js `/api/chat`
   streaming proxy. `useChat` owns SDK messages/status/cancellation through one
   SDK `Chat` instance per conversation; the shell owns only sidebar metadata and

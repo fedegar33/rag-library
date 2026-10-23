@@ -19,6 +19,22 @@ class AgentResult:
     tool_calls: list[ToolCallRecord]
 
 
+class BookCard(BaseModel):
+    """Public catalog data for a book card; no internal hashes or image bytes."""
+
+    id: int = Field(gt=0, strict=True)
+    title: str
+    authors: str | None
+    categories: list[str]
+    cover_url: str | None
+
+
+class AvailableBooksResult(BaseModel):
+    """Validated output of the server-owned catalog tool."""
+
+    books: list[BookCard]
+
+
 class AgentAnswer(BaseModel):
     """The model-generated final answer, excluding server-owned execution records."""
 

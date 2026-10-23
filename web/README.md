@@ -1,7 +1,7 @@
 # RAG Library web
 
 Dark chat UI with TypeScript, Next.js App Router, Tailwind CSS v4, shadcn/ui,
-and AI Elements. `useChat` from `@ai-sdk/react` owns messages, streaming status, errors, and
+and shadcn chat patterns. `useChat` from `@ai-sdk/react` owns messages, streaming status, errors, and
 cancellation. Its AI SDK transport consumes Python's UI message SSE protocol;
 agent and retrieval logic remain in Python.
 
@@ -57,7 +57,8 @@ states, and custom `data-source` parts stay in SDK `UIMessage.parts`; no custom
 message accumulator or request controller is maintained. Switching calls the
 hook's `stop()`. Retry explicitly resends the question as a new turn, keeping the
 original interrupted reply. Automatic tool follow-ups and stream resumption are
-disabled. A small transport guard checks `finish` and nonempty text, because the
+disabled. A small transport guard checks `finish` and nonempty text or a validated
+catalog result (including an empty catalog), because the
 SDK otherwise accepts an ordinary end of stream.
 
 The Next route is a transport proxy; it does not execute another agent.
@@ -81,5 +82,23 @@ HTTP/in-stream failures, premature EOF, cancellation, and server-side configurat
 `pnpm-workspace.yaml` records dependency build-script policy for this app;
 there is no root JavaScript workspace or monorepo framework.
 Routes live in `src/app/`; application UI in `src/components/`; primitives in
-`components/ui/`; AI Elements in `components/ai-elements/`; helpers in `src/lib/`.
+`components/ui/`; app-specific chat views in `components/`; helpers in `src/lib/`.
 See [AGENTS.md](AGENTS.md) and [the root README](../README.md).
+
+
+## Chat UI primitives
+
+The chat uses shadcn Message Scroller, Message/Bubble, Input Group, and Trace
+directly. The former AI SDK Elements Conversation wrapper and use-stick-to-bottom
+dependency have been removed. Message Scroller anchors each user turn near the
+top and follows streaming only while the reader stays at the live edge.
+
+`ChatShell` coordinates chats and the SDK; `ChatMessage` presents a turn, with
+Streamdown for assistant Markdown and literal user text. `ChatComposer` preserves
+the existing draft, Enter/Shift+Enter, and IME behavior on Input Group. `ToolResult`
+uses an explicit tool-name mapping for catalog cards. `ToolActivity` renders the
+Trace status in stream order. Successful catalog cards wait until the assistant
+turn settles, so preamble, counted status, and final introduction precede them.
+Completed results survive a later interruption; narration remains model-generated.
+There are no artificial delays. Python remains responsible for execution; no automatic tool follow-up,
+new backend protocol, persistence, uploads, or source panel is introduced.

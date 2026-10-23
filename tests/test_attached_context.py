@@ -10,15 +10,29 @@ from langchain_core.outputs import ChatGeneration, ChatResult
 
 from rag_library.agent.agent import build_agent, run_agent
 from rag_library.agent.context import AgentContext, create_agent_context
-from rag_library.agent.tools import answer_book_question, list_books
+from rag_library.agent.tools import answer_book_question, list_available_books
 from rag_library.catalog import get_books_by_refs
 from rag_library.rag.search import SearchResult
 
 
 def book(book_id=7):
     return dict(
-        id=book_id, title="Book", authors=None, language="en", content_sha256="a" * 64
+        id=book_id,
+        title="Book",
+        authors=None,
+        language="en",
+        content_sha256="a" * 64,
+        categories=[],
+        cover_url=None,
     )
+
+
+def card(book_id=7):
+    return {
+        key: value
+        for key, value in book(book_id).items()
+        if key not in ("language", "content_sha256")
+    }
 
 
 class ScriptedModel(BaseChatModel):
@@ -36,14 +50,78 @@ class ScriptedModel(BaseChatModel):
 
 
 class AttachedContextTests(unittest.TestCase):
-    def test_catalog_tool_only_exposes_current_attachments(self):
-        attached = (book(7), book(8))
-        result = list_books.func(
-            runtime=SimpleNamespace(context=AgentContext(attached))
+    @patch("rag_library.catalog.list_books", return_value=[book(7), book(8)])
+    def test_catalog_tool_lists_all_books_without_model_arguments(self, catalog):
+        self.assertEqual(list_available_books.func(), {"books": [card(7), card(8)]})
+        catalog.assert_called_once_with()
+        schema = list_available_books.tool_call_schema.model_json_schema()
+        self.assertEqual(schema["properties"], {})
+
+    @patch("rag_library.catalog.list_books", return_value=[book(7), book(8)])
+    @patch("rag_library.agent.tools.BookRetriever")
+    def test_no_attachments_resolve_all_books_and_reach_retriever(
+        self, retriever, catalog
+    ):
+        retriever.return_value.invoke.return_value = []
+        for ids in [(), []]:
+            context = create_agent_context(ids)
+            self.assertEqual(context.book_ids, [7, 8])
+            answer_book_question.func(
+                question="Where?", runtime=SimpleNamespace(context=context)
+            )
+        self.assertEqual(create_agent_context().book_ids, [7, 8])
+        self.assertEqual(
+            [call.kwargs["book_ids"] for call in retriever.call_args_list],
+            [[7, 8], [7, 8]],
         )
-        self.assertEqual(result, {"books": list(attached)})
-        with self.assertRaises(ValueError):
-            AgentContext(())
+
+    @patch("rag_library.catalog.list_books", return_value=[])
+    @patch("rag_library.agent.tools.BookRetriever")
+    def test_empty_library_returns_explicit_message_without_retrieval(
+        self, retriever, catalog
+    ):
+        context = create_agent_context()
+        result = answer_book_question.func(
+            question="Where?", runtime=SimpleNamespace(context=context)
+        )
+        self.assertEqual(result["sources"], [])
+        self.assertIn("No books", result["message"])
+        self.assertEqual(list_available_books.func(), {"books": []})
+        retriever.assert_not_called()
+
+    @patch("rag_library.catalog.list_books", return_value=[book(7), book(8)])
+    def test_graph_catalog_listing_does_not_expand_attached_retrieval_scope(
+        self, catalog
+    ):
+        agent = build_agent(
+            ScriptedModel(
+                responses=[
+                    AIMessage(
+                        content="",
+                        tool_calls=[
+                            dict(name="list_available_books", args={}, id="list")
+                        ],
+                    ),
+                    AIMessage(
+                        content="",
+                        tool_calls=[
+                            dict(
+                                name="answer_book_question",
+                                args={"question": "Where?"},
+                                id="answer",
+                            )
+                        ],
+                    ),
+                    AIMessage(content='{"answer":"Evidence"}'),
+                ]
+            )
+        )
+        with patch("rag_library.agent.tools.BookRetriever") as retriever:
+            retriever.return_value.invoke.return_value = []
+            result = run_agent(agent, "Where?", context=create_agent_context([7]))
+        self.assertEqual(result.tool_calls[0].name, "list_available_books")
+        self.assertEqual(result.tool_calls[0].result, {"books": [card(7), card(8)]})
+        self.assertEqual(retriever.call_args.kwargs["book_ids"], [7])
 
     @patch("rag_library.agent.tools.BookRetriever")
     def test_graph_injects_hidden_scope_and_does_not_keep_previous_attachments(
@@ -176,7 +254,5 @@ class AttachedContextTests(unittest.TestCase):
             self.assertEqual(get_books_by_refs(["a" * 64])[0]["id"], book_id)
         with self.assertRaisesRegex(ValueError, "No ingested book"):
             get_books_by_refs(["b" * 64])
-        with self.assertRaises(ValueError):
-            create_agent_context([])
         with self.assertRaisesRegex(ValueError, "Unknown book IDs"):
             create_agent_context([99, 123])

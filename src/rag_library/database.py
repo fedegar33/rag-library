@@ -9,6 +9,7 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     Integer,
+    LargeBinary,
     String,
     Text,
     create_engine,
@@ -37,6 +38,13 @@ class Book(Base):
     language: Mapped[str | None] = mapped_column(String(32), nullable=True)
     publisher: Mapped[str | None] = mapped_column(String(500), nullable=True)
     identifier: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    categories: Mapped[list[str]] = mapped_column(
+        JSONB, default=list, server_default=text("'[]'::jsonb")
+    )
+    cover_data: Mapped[bytes | None] = mapped_column(
+        LargeBinary, nullable=True, deferred=True
+    )
+    cover_media_type: Mapped[str | None] = mapped_column(String(64), nullable=True)
     source_filename: Mapped[str] = mapped_column(String(1000))
     content_sha256: Mapped[str] = mapped_column(String(64), unique=True, index=True)
     created_at: Mapped[datetime] = mapped_column(
@@ -80,6 +88,20 @@ def initialize_schema(engine) -> None:
     """Enable pgvector and create application tables if needed."""
     with engine.begin() as connection:
         connection.exec_driver_sql("CREATE EXTENSION IF NOT EXISTS vector")
+        if inspect(connection).has_table("books"):
+            columns = {
+                column["name"] for column in inspect(connection).get_columns("books")
+            }
+            additions = {
+                "categories": "JSONB NOT NULL DEFAULT '[]'::jsonb",
+                "cover_data": "BYTEA",
+                "cover_media_type": "VARCHAR(64)",
+            }
+            for name, definition in additions.items():
+                if name not in columns:
+                    connection.execute(
+                        text(f"ALTER TABLE books ADD COLUMN {name} {definition}")
+                    )
         if inspect(connection).has_table("book_chunks"):
             columns = {
                 column["name"]

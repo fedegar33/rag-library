@@ -1,33 +1,32 @@
 """Agent tools backed by the reusable catalog and RAG workflows."""
 
-from typing import Any, TypedDict
+from typing import Any
 
 from langchain.tools import ToolRuntime, tool
 
 from rag_library import catalog
 from rag_library.agent.context import AgentContext
+from rag_library.agent.models import AvailableBooksResult
 from rag_library.rag.retriever import BookRetriever
 
 
-class ListBooksResult(TypedDict):
-    books: list[catalog.CatalogBook]
-
-
 @tool()
-def list_books(runtime: ToolRuntime[AgentContext]) -> ListBooksResult:
-    """List the books attached to this request, with catalog metadata."""
-    return {"books": list(runtime.context.books)}
+def list_available_books() -> dict[str, Any]:
+    """List all books available in the database, regardless of chat attachments."""
+    return AvailableBooksResult(books=catalog.list_books()).model_dump(mode="json")
 
 
 @tool()
 def answer_book_question(
     question: str, runtime: ToolRuntime[AgentContext]
 ) -> dict[str, Any]:
-    """Retrieve evidence to answer a content question from the attached books.
+    """Retrieve evidence from attached books, or the whole library without attachments.
 
     Book scope is supplied by the application. Supply only the question; do not
     choose book IDs, infer attachments, or add guessed answer terms.
     """
+    if not runtime.context.books:
+        return {"sources": [], "message": "No books are available in the library."}
     documents = BookRetriever(
         k=5,
         book_ids=runtime.context.book_ids,

@@ -1,23 +1,24 @@
-"""Application-owned book attachments for one agent invocation."""
+"""Application-owned retrieval scope for one agent invocation."""
 
 from collections.abc import Sequence
 from dataclasses import dataclass
 
-from rag_library.catalog import CatalogBook, get_books_by_ids, normalize_book_ids
+from rag_library import catalog
 from rag_library.rag.search import RetrievalMethod
 
 
 @dataclass(frozen=True)
 class AgentContext:
-    """A validated catalog snapshot; tools cannot widen this attachment scope."""
+    """A validated retrieval snapshot: attachments, or the entire catalog."""
 
-    books: tuple[CatalogBook, ...]
+    books: tuple[catalog.CatalogBook, ...]
     retrieval_method: RetrievalMethod = "hybrid"
     candidate_limit: int | None = None
     rerank: bool = True
 
     def __post_init__(self):
-        normalize_book_ids(self.book_ids)
+        if self.books:
+            catalog.normalize_book_ids(self.book_ids)
         validate_retrieval_options(self.retrieval_method, self.candidate_limit)
 
     @property
@@ -41,16 +42,18 @@ def validate_retrieval_options(method: str, candidate_limit: int | None) -> None
 
 
 def create_agent_context(
-    book_ids: Sequence[int],
+    book_ids: Sequence[int] = (),
     *,
     retrieval_method: RetrievalMethod = "hybrid",
     candidate_limit: int | None = None,
     rerank: bool = True,
 ) -> AgentContext:
-    """Validate caller attachments against the catalog before invoking a model."""
+    """Resolve attachments, or snapshot all available books when none are supplied."""
     validate_retrieval_options(retrieval_method, candidate_limit)
     return AgentContext(
-        books=tuple(get_books_by_ids(book_ids)),
+        books=tuple(
+            catalog.get_books_by_ids(book_ids) if book_ids else catalog.list_books()
+        ),
         retrieval_method=retrieval_method,
         candidate_limit=candidate_limit,
         rerank=rerank,

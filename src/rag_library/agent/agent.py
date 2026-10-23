@@ -15,7 +15,7 @@ from langchain_openai import ChatOpenAI
 from rag_library.agent.context import AgentContext
 from rag_library.agent.models import AgentAnswer, AgentResult, ToolCallRecord
 from rag_library.agent.prompts import SYSTEM_PROMPT
-from rag_library.agent.tools import answer_book_question, list_books
+from rag_library.agent.tools import answer_book_question, list_available_books
 from rag_library.config import get_settings
 
 
@@ -23,7 +23,7 @@ def build_agent(model: str | BaseChatModel, *, structured_output: bool = True):
     """Build an agent with independent state and bounded execution per invocation."""
     return create_agent(
         model=model,
-        tools=[list_books, answer_book_question],
+        tools=[list_available_books, answer_book_question],
         system_prompt=SYSTEM_PROMPT,
         context_schema=AgentContext,
         response_format=(

@@ -61,5 +61,36 @@ Show a useful setup error when test books are unconfigured; never imply a sample
 reply is a live answer. Model execution and credentials remain in Python.
 
 Keep app-specific UI in `src/components/`, primitives in `components/ui/`, and
-AI Elements in `components/ai-elements/`. Extend the existing tokens and shared
-components before adding dependencies or another design system.
+app-specific chat composition in `components/`. Extend the existing tokens and
+shared components before adding dependencies or another design system.
+
+
+## Chat composition
+
+Use shadcn Message Scroller directly, with the user message as each turn's
+scroll anchor. New questions settle near the top. Follow streamed output only
+while the reader stays at the live edge; reading earlier messages stops that
+follow. Jump to latest restores it. Scrolling and button visibility are instant.
+
+Message and Bubble compose turns; user text stays literal, while assistant
+Markdown streams through Streamdown with the existing serif typography. Keep
+code blocks scrollable and links visibly underlined. Input Group composes the
+existing textarea and send button, preserving drafts, keyboard behavior and IME
+handling. There is no upload or model selection UI.
+
+Show one quiet Trace line per tool execution, using friendly pending, complete,
+and failed labels. Preserve the chronological order of model text and activity.
+The model is asked to announce catalog discovery before calling the tool; do not
+invent narration if it omits that sentence. Thinking is transient and disappears
+on the first model text or tool activity, without returning between steps.
+
+Catalog success reads "Library checked · N books found" ("1 book found" for one).
+Keep that count in the status line rather than repeating it above the cards.
+Stream the model's final introduction after the status. Hold validated catalog
+results in a waiting-for-response state until the whole turn settles, then show
+them beneath the prose. Text-end alone is not a terminal turn event. Valid
+cards also remain available after failure or cancellation of later prose, with
+the existing interruption notice; a failed tool produces no cards. Tool-only
+success can still reveal cards without inventing an introduction. Keep each
+result keyed by toolCallId. Do not display raw tool inputs/outputs or put cards
+behind a disclosure, and do not add timers to choreograph the live response.

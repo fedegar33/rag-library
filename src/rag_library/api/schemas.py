@@ -6,7 +6,9 @@ from pydantic import BaseModel, Field, field_validator
 
 
 class ChatRequest(BaseModel):
-    book_ids: list[Annotated[int, Field(gt=0, strict=True)]] = Field(min_length=1)
+    book_ids: list[Annotated[int, Field(gt=0, strict=True)]] = Field(
+        default_factory=list
+    )
     message: str = Field(min_length=1, max_length=4000)
 
     @field_validator("message", mode="before")

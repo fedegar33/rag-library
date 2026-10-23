@@ -1,7 +1,13 @@
 # AI Engineering Diary
 
+## 2026-10-23
+
+- **Streaming presentation:** Tool completion does not finish an assistant turn; controlled SSE tests verified chronological narration, deferred catalog cards, and retained results after later interruptions.
+
 ## 2026-10-22
 
+- **Book-card provenance:** Extracted declared covers and original EPUB subjects into a validated catalog contract; metadata-only enrichment preserves retrieval data, and missing subjects stay empty rather than becoming inferred genres.
+- **Catalog discovery and retrieval scope:** Separated full-catalog discovery from application-controlled retrieval scope; requests without attachments snapshot all books, while attached requests retain restricted search and empty catalogs skip retrieval.
 - **Agent streaming:** Connected Python SSE to the UI through AI SDK transport; explicit completion distinguishes interrupted answers, while displayed conversation history stays separate from stateless agent context.
 
 ## 2026-10-21

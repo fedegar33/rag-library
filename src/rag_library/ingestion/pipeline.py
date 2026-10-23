@@ -11,7 +11,7 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from rag_library.config import get_settings
+from rag_library.config import get_database_settings, get_settings
 from rag_library.database import (
     Book,
     BookChunk,
@@ -19,6 +19,7 @@ from rag_library.database import (
     initialize_schema,
 )
 from rag_library.ingestion.epub import EpubExtractor
+from rag_library.ingestion.metadata import extract_book_presentation
 
 CHUNK_SIZE = 1000
 CHUNK_OVERLAP = 200
@@ -82,6 +83,7 @@ def ingest_book(
     path = validate_epub_path(file_path)
     settings = get_settings()
     content_hash = sha256_file(path)
+    presentation = extract_book_presentation(path)
 
     print(f"Loading EPUB: {path}")
     documents = EpubExtractor().load(path)
@@ -114,6 +116,9 @@ def ingest_book(
 
         book = Book(
             **metadata,
+            categories=presentation.categories,
+            cover_data=presentation.cover_data,
+            cover_media_type=presentation.cover_media_type,
             source_filename=path.name,
             content_sha256=content_hash,
         )
@@ -149,3 +154,28 @@ def ingest_book(
         print(f"  Chunks: {len(chunks)}")
         print(f"  Source: {book.source_filename}")
         return book
+
+
+def enrich_book(file_path: str | Path) -> Book:
+    """Update only presentation metadata of the exact ingested EPUB edition."""
+    path = validate_epub_path(file_path)
+    content_hash = sha256_file(path)
+    presentation = extract_book_presentation(path)
+    engine = create_database_engine(get_database_settings().database_url)
+    try:
+        initialize_schema(engine)
+        with Session(engine, expire_on_commit=False) as session, session.begin():
+            book = session.scalar(
+                select(Book)
+                .where(Book.content_sha256 == content_hash)
+                .with_for_update()
+            )
+            if book is None:
+                raise ValueError("No ingested book matches this EPUB's content_sha256")
+            book.categories = presentation.categories
+            book.cover_data = presentation.cover_data
+            book.cover_media_type = presentation.cover_media_type
+            session.flush()
+            return book
+    finally:
+        engine.dispose()

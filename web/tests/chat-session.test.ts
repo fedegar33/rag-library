@@ -1,3 +1,4 @@
+import { ANSWER_BOOK_QUESTION_TOOL } from "../src/lib/tools-constants.ts";
 import assert from "node:assert/strict";
 import { setImmediate as tick } from "node:timers/promises";
 import { test } from "node:test";
@@ -44,7 +45,7 @@ test("SDK owns fragmented text, dynamic tool state, and source parts", async () 
       {
         type: "tool-input-available",
         toolCallId: "a",
-        toolName: "answer_book_question",
+        toolName: ANSWER_BOOK_QUESTION_TOOL,
         input: {},
         dynamic: true,
       },

@@ -1,13 +1,18 @@
 "use client";
 
-import { ArrowUp, PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useChat } from "@ai-sdk/react";
 import {
-  Conversation,
-  ConversationContent,
-  ConversationScrollButton,
-} from "@/components/ai-elements/conversation";
+  MessageScrollerProvider,
+  MessageScroller,
+  MessageScrollerViewport,
+  MessageScrollerContent,
+  MessageScrollerItem,
+  MessageScrollerButton,
+} from "@/components/ui/message-scroller";
+import { ChatMessage } from "@/components/chat-message";
+import { ChatComposer } from "@/components/chat-composer";
 import { emptyChat, type Chat } from "@/lib/chat";
 import { messageText } from "@/lib/chat-transport";
 
@@ -79,19 +84,6 @@ export function ChatShell({
   const latestQuestion = messages.findLast(
     (message) => message.role === "user",
   );
-  const searching = lastMessage?.parts.some(
-    (part) =>
-      part.type === "dynamic-tool" &&
-      (part.state === "input-available" || part.state === "input-streaming"),
-  );
-  const responseStatus = searching
-    ? "Searching your books…"
-    : lastMessage?.parts.some(
-          (part) => part.type === "text" && part.state === "streaming",
-        )
-      ? "Writing…"
-      : "Thinking…";
-
   // Each SDK Chat owns its message store. Switching hooks unsubscribes the old
   // conversation; stop() cancels its request and retains the partial message.
   useEffect(
@@ -215,127 +207,50 @@ export function ChatShell({
             </div>
           </section>
         ) : (
-          <Conversation
-            key={chat.id}
-            initial="instant"
-            resize="instant"
-            className="messages"
-            aria-label="Chat messages"
-          >
-            <ConversationContent className="message-list">
-              {messages.map((message) => (
-                <article
-                  className={`message ${message.role}`}
-                  key={message.id}
-                  aria-label={
-                    message.role === "user" ? "Your message" : "Assistant reply"
-                  }
-                >
-                  {message.role === "assistant" && (
-                    <div className="assistant-label">
-                      <span>RAG Library</span>
-                      {message.metadata?.interruption && (
-                        <span className="sample-label">Interrupted</span>
-                      )}
-                      {busy && message.id === lastMessage?.id && (
-                        <span className="response-status" role="status">
-                          {responseStatus}
-                        </span>
-                      )}
-                    </div>
+          <MessageScrollerProvider key={chat.id} autoScroll defaultScrollPosition="last-anchor">
+            <MessageScroller className="messages">
+              <MessageScrollerViewport aria-label="Chat messages">
+                <MessageScrollerContent className="message-list">
+                  {messages.map((message) => (
+                    <MessageScrollerItem
+                      key={message.id}
+                      messageId={message.id}
+                      scrollAnchor={message.role === "user"}
+                    >
+                      <ChatMessage
+                        message={message}
+                        active={busy && message.id === lastMessage?.id}
+                        retryDisabled={busy || !!configurationError}
+                        onRetry={message.id === lastMessage?.id && latestQuestion ? retry : undefined}
+                      />
+                    </MessageScrollerItem>
+                  ))}
+                  {busy && lastMessage?.role !== "assistant" && (
+                    <MessageScrollerItem messageId={`pending-${chat.id}`}>
+                      <div className="assistant-label" role="status">
+                        <span className="response-status">Thinking…</span>
+                      </div>
+                    </MessageScrollerItem>
                   )}
-                  <div className="message-text">
-                    {messageText(message)
-                      .split("\n\n")
-                      .map((paragraph, index) => (
-                        <p key={index}>{paragraph}</p>
-                      ))}
-                  </div>
-                  {message.metadata?.interruption && (
-                    <div className="response-error" role="alert">
-                      <p>{message.metadata.interruption}</p>
-                      {message.id === lastMessage?.id && latestQuestion && (
-                        <button
-                          className="retry-button"
-                          disabled={busy || !!configurationError}
-                          onClick={retry}
-                        >
-                          Retry question
-                        </button>
-                      )}
-                    </div>
-                  )}
-                </article>
-              ))}
-              {busy && lastMessage?.role !== "assistant" && (
-                <div className="assistant-label" role="status">
-                  <span>RAG Library</span>
-                  <span className="response-status">Thinking…</span>
-                </div>
-              )}
-            </ConversationContent>
-            <ConversationScrollButton aria-label="Scroll to latest message" />
-          </Conversation>
+                </MessageScrollerContent>
+              </MessageScrollerViewport>
+              <MessageScrollerButton
+                aria-label="Jump to latest message"
+                behavior="instant"
+                className="scroll-latest size-10 transition-none"
+              />
+            </MessageScroller>
+          </MessageScrollerProvider>
         )}
-        <div className="composer-area">
-          {configurationError && (
-            <p className="configuration-error" role="alert">
-              {configurationError}
-            </p>
-          )}
-          <form className="composer" onSubmit={send} aria-busy={busy}>
-            <label className="sr-only" htmlFor="message-input">
-              Message RAG Library
-            </label>
-            <textarea
-              ref={composer}
-              id="message-input"
-              placeholder="Ask about your books…"
-              rows={1}
-              maxLength={4000}
-              aria-describedby="chat-limits"
-              value={chat.draft}
-              onChange={(event) => setDraft(event.target.value)}
-              onKeyDown={(event) => {
-                if (
-                  event.key === "Enter" &&
-                  !event.shiftKey &&
-                  !event.nativeEvent.isComposing &&
-                  event.keyCode !== 229
-                ) {
-                  event.preventDefault();
-                  event.currentTarget.form?.requestSubmit();
-                }
-              }}
-            />
-            <div className="composer-toolbar">
-              <span className="book-status">
-                {chat.books.length === 0
-                  ? "No books attached"
-                  : `${chat.books.length} ${chat.books.length === 1 ? "book" : "books"} attached`}
-              </span>
-              <div className="composer-actions">
-                <span className="send-hint">Enter to send</span>
-                <button
-                  className="send-button"
-                  type="submit"
-                  aria-label="Send message"
-                  disabled={
-                    !chat.draft.trim() ||
-                    busy ||
-                    !!configurationError ||
-                    !bookIds.length
-                  }
-                >
-                  <ArrowUp size={19} />
-                </button>
-              </div>
-            </div>
-          </form>
-          <p className="demo-note" id="chat-limits">
-            Each question is independent. Chats reset on refresh.
-          </p>
-        </div>
+        <ChatComposer
+          draft={chat.draft}
+          bookCount={chat.books.length}
+          busy={busy}
+          configurationError={configurationError}
+          inputRef={composer}
+          onDraftChange={setDraft}
+          onSubmit={send}
+        />
       </main>
     </div>
   );

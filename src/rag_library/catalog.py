@@ -17,6 +17,8 @@ class CatalogBook(TypedDict):
     authors: str | None
     language: str | None
     content_sha256: str
+    categories: list[str]
+    cover_url: str | None
 
 
 def list_books() -> list[CatalogBook]:
@@ -31,9 +33,40 @@ def list_books() -> list[CatalogBook]:
                     Book.authors,
                     Book.language,
                     Book.content_sha256,
+                    Book.categories,
+                    (
+                        Book.cover_data.is_not(None)
+                        & Book.cover_media_type.is_not(None)
+                    ).label("has_cover"),
                 ).order_by(Book.title, Book.id)
             ).mappings()
-            return [CatalogBook(**row) for row in rows]
+            return [
+                CatalogBook(
+                    id=row["id"],
+                    title=row["title"],
+                    authors=row["authors"],
+                    language=row["language"],
+                    content_sha256=row["content_sha256"],
+                    categories=row["categories"],
+                    cover_url=f"/books/{row['id']}/cover" if row["has_cover"] else None,
+                )
+                for row in rows
+            ]
+    finally:
+        engine.dispose()
+
+
+def get_book_cover(book_id: int) -> tuple[bytes, str] | None:
+    """Load image bytes only on explicit cover requests, without model credentials."""
+    engine = create_database_engine(get_database_settings().database_url)
+    try:
+        with Session(engine) as session:
+            row = session.execute(
+                select(Book.cover_data, Book.cover_media_type).where(Book.id == book_id)
+            ).one_or_none()
+            if row is None or not row[0] or not row[1]:
+                return None
+            return bytes(row[0]), row[1]
     finally:
         engine.dispose()
 

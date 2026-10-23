@@ -52,6 +52,7 @@ with a current catalog ID):
 
 ```bash
 uv run python -m rag_library.cli.ingest --file "./book.epub"
+uv run python -m rag_library.cli.enrich_books --file "./book.epub"
 uv run epub-ingestion-debug "./book.epub"
 uv run epub-ingestion-debug "./book.epub" --show-excluded
 uv run python -m rag_library.cli.books
@@ -150,7 +151,7 @@ each Python package also contains `__init__.py`):
 │   └── src/
 │       ├── app/                    # Routes, layout, Tailwind styles
 │       ├── components/ui/          # shadcn primitives
-│       ├── components/ai-elements/ # AI Elements conversation component
+│       ├── components/            # Chat composition and tool result views
 │       └── lib/
 ├── src/
 │   └── rag_library/
@@ -225,12 +226,23 @@ reusable application code from the installed package.
   notebooks, and documentation together. The API entry point remains
   `rag_library.main:app`.
 
-The API requires nonempty `book_ids` and validates all attachments before model
-execution. `AgentContext` injects the attached books into tools; the model supplies
-only the content question. Retrieval pools top-k across attached IDs, retaining
-each source's book ID. The agent's `list_books` tool exposes only attachments;
-`POST /chat` is the only application HTTP route; catalog listing uses the CLI.
-The caller owns attachment state.
+The API accepts omitted or empty `book_ids` and validates any supplied attachments
+before model execution. `AgentContext` snapshots the attached books, or the entire
+catalog when none are attached; the model supplies only the content question.
+Retrieval pools top-k across these resolved IDs, retaining each source's book ID.
+An empty library returns an explicit no-books tool result without retrieval.
+The agent's `list_available_books` tool always queries the entire catalog,
+independently of attachments, without changing retrieval scope. Its validated
+public output contains `id`, `title`, nullable `authors`, `categories`, and nullable
+`cover_url`, excluding hashes and image bytes. The agent gives a short introduction
+in the user's language without repeating the card list. Covers are stored as
+deferred binary data in PostgreSQL and served by `GET /books/{id}/cover`; relative
+URLs use the backend origin. Missing books/covers return 404. Ingestion extracts
+declared raster covers (JPEG/PNG/GIF/WebP) and all original `dc:subject` categories,
+without genre inference; missing values use null/empty lists. The `enrich_books`
+CLI matches original EPUB hashes and updates presentation metadata without changing
+IDs, chunks, or embeddings, requiring only database settings. Run it to migrate
+existing databases before using the updated catalog. The caller owns attachment state.
 Eval cases use nonempty `book_refs` lists of exact EPUB `content_sha256` values,
 resolved to current numeric IDs at generation time and saved with answers.
 Direct `ask`/`search` commands can omit `--book-id` only for a singleton catalog.

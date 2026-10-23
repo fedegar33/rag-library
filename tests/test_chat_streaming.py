@@ -26,6 +26,10 @@ class StreamingModel(ScriptedModel):
     def _stream(self, messages, stop=None, run_manager=None, **kwargs):
         response = self.responses.pop(0)
         if response.tool_calls:
+            if response.content:
+                yield ChatGenerationChunk(
+                    message=AIMessageChunk(content=response.content)
+                )
             yield ChatGenerationChunk(
                 message=AIMessageChunk(
                     content="",
@@ -107,6 +111,56 @@ class ChatStreamTests(unittest.IsolatedAsyncioTestCase):
         )
         self.assertEqual(model.responses, [])
         search.assert_called_once()
+
+    @patch("rag_library.catalog.list_books")
+    async def test_catalog_preamble_precedes_tool_and_final_intro_follows_result(
+        self, catalog
+    ):
+        catalog.return_value = [book()]
+        model = StreamingModel(
+            responses=[
+                AIMessage(
+                    content="Let me check the library.",
+                    tool_calls=[
+                        {"name": "list_available_books", "args": {}, "id": "catalog"}
+                    ],
+                ),
+                AIMessage(content="Here are the available books."),
+            ]
+        )
+        frames = [
+            frame
+            async for frame in stream_chat(
+                build_agent(model, structured_output=False),
+                "Which books are available?",
+                AgentContext((book(),)),
+            )
+        ]
+        events = [decode(frame) for frame in frames[:-1]]
+        kinds = [event["type"] for event in events]
+        tool_start = kinds.index("tool-input-available")
+        tool_end = kinds.index("tool-output-available")
+        self.assertLess(kinds.index("text-end"), tool_start)
+        self.assertEqual(
+            "".join(
+                event["delta"]
+                for event in events[:tool_start]
+                if event["type"] == "text-delta"
+            ),
+            "Let me check the library.",
+        )
+        self.assertEqual(
+            "".join(
+                event["delta"]
+                for event in events[tool_end + 1 :]
+                if event["type"] == "text-delta"
+            ),
+            "Here are the available books.",
+        )
+        self.assertEqual(
+            events[tool_start]["toolCallId"], events[tool_end]["toolCallId"]
+        )
+        self.assertEqual(events[-1]["type"], "finish")
 
     async def test_first_text_arrives_while_agent_is_still_running_and_closes_on_cancel(
         self,
@@ -295,8 +349,7 @@ class ChatRouteTests(unittest.TestCase):
     ):
         client = TestClient(app)
         for payload in [
-            {"message": "Hi"},
-            {"message": "Hi", "book_ids": []},
+            {"message": "Hi", "book_ids": None},
             {"message": "Hi", "book_ids": [0]},
             {"message": "Hi", "book_ids": [True]},
             {"message": "Hi", "book_ids": ["7"]},
@@ -321,6 +374,71 @@ class ChatRouteTests(unittest.TestCase):
         self.assertEqual(response.headers["x-accel-buffering"], "no")
         get.assert_called_once_with(structured_output=False)
         self.assertTrue(response.text.endswith("data: [DONE]\n\n"))
+
+    @patch("rag_library.api.routes.get_agent")
+    @patch("rag_library.catalog.list_books", return_value=[book(7), book(8)])
+    @patch("rag_library.agent.tools.BookRetriever")
+    def test_without_attachments_streams_global_retrieval(
+        self, retriever, catalog, get
+    ):
+        retriever.return_value.invoke.return_value = []
+        for payload in [{"message": "Where?"}, {"message": "Where?", "book_ids": []}]:
+            with self.subTest(payload=payload):
+                get.return_value = build_agent(
+                    StreamingModel(
+                        responses=[
+                            AIMessage(
+                                content="",
+                                tool_calls=[
+                                    dict(
+                                        name="answer_book_question",
+                                        args={"question": "Where?"},
+                                        id="global",
+                                    )
+                                ],
+                            ),
+                            AIMessage(content="No matching evidence."),
+                        ]
+                    ),
+                    structured_output=False,
+                )
+                response = TestClient(app).post("/chat", json=payload)
+                self.assertEqual(response.status_code, 200, response.text)
+                self.assertIn('"type": "finish"', response.text)
+                self.assertEqual(retriever.call_args.kwargs["book_ids"], [7, 8])
+
+    @patch("rag_library.api.routes.get_agent")
+    @patch("rag_library.catalog.list_books", return_value=[])
+    @patch("rag_library.agent.tools.BookRetriever")
+    def test_empty_library_streams_tool_message_without_retrieval(
+        self, retriever, catalog, get
+    ):
+        get.return_value = build_agent(
+            StreamingModel(
+                responses=[
+                    AIMessage(
+                        content="",
+                        tool_calls=[
+                            dict(
+                                name="answer_book_question",
+                                args={"question": "Where?"},
+                                id="empty-library",
+                            )
+                        ],
+                    ),
+                    AIMessage(content="No books are available."),
+                ]
+            ),
+            structured_output=False,
+        )
+        response = TestClient(app).post("/chat", json={"message": "Where?"})
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertIn(
+            '"message": "No books are available in the library."', response.text
+        )
+        self.assertIn('"type": "finish"', response.text)
+        self.assertNotIn('"type": "data-source"', response.text)
+        retriever.assert_not_called()
 
     @patch("rag_library.catalog.list_books", return_value=[book()])
     @patch("rag_library.api.routes.get_agent", side_effect=RuntimeError("secret"))

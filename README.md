@@ -12,7 +12,7 @@ agent; conversation memory and production deployment remain deferred.
 
 The stack uses FastAPI, SQLAlchemy 2.x, PostgreSQL with pgvector,
 LangChain components, and OpenAI embedding and chat models. The web app
-uses Next.js App Router, TypeScript, Tailwind CSS v4, shadcn/ui, and AI Elements.
+uses Next.js App Router, TypeScript, Tailwind CSS v4, shadcn/ui chat primitives, and Streamdown for Markdown.
 
 ## Requirements
 
@@ -171,6 +171,31 @@ uv run python -m rag_library.cli.books
 
 No ingestion or model calls are performed by `epub-ingestion-debug`.
 
+### Book-card metadata
+
+New ingestions also extract all EPUB `dc:subject` values as `categories`, and a
+declared cover image. Categories retain their original values and order; they
+are not inferred genres. Missing categories become `[]`. Supported covers are
+JPEG, PNG, GIF, and WebP; absent or unsupported covers become `null` in the card
+contract. Covers are stored as bytes in PostgreSQL and loaded separately from
+catalog queries and retrieval.
+
+For existing books, run the metadata-only command **before using the updated
+catalog API**. It also adds the new columns to existing databases:
+
+```bash
+uv run python -m rag_library.cli.enrich_books --file "./book.epub"
+# Repeat --file to update several books in one run.
+```
+
+This command needs only `DATABASE_URL`. It matches the exact EPUB bytes through
+`content_sha256` and updates only categories and cover fields, preserving book
+IDs, chunks, and embeddings. Unknown EPUB hashes fail instead of creating a
+book. Each file commits separately; if a later file fails, earlier updates stay
+committed. Repeated runs are safe. Books without an available original retain
+empty categories and no cover after schema initialization. Regular ingestion
+also initializes this additive schema; re-ingestion is unnecessary for enrichment.
+
 ## Search ingested books
 
 Search stored chunks with vector retrieval (the default), BM25, or hybrid RRF:
@@ -291,7 +316,7 @@ output label RRF scores explicitly instead of treating them as cosine similarity
 ## Book agent
 
 `POST /chat` streams one independent message using a LangChain agent with
-two tools, `list_books` and `answer_book_question`. Set `DATABASE_URL`, `OPENAI_API_KEY`,
+two tools, `list_available_books` and `answer_book_question`. Set `DATABASE_URL`, `OPENAI_API_KEY`,
 and `COHERE_API_KEY`; the agent uses
 `OPENAI_CHAT_MODEL` (default: `gpt-4o-mini`). Start the API as described above,
 then send a request:
@@ -303,9 +328,11 @@ curl -N http://127.0.0.1:8000/chat \
 ```
 
 Choose current IDs through `uv run python -m rag_library.cli.books`.
-That catalog includes each book's `content_sha256`. The API requires one or more
-positive integer IDs in every request and validates all attachments before
-initializing the agent. Missing, empty, or unknown IDs return HTTP 422.
+That catalog includes each book's `content_sha256`. The API accepts omitted or
+empty `book_ids` to search the whole library. When supplied, IDs must be positive
+integers and all attachments are validated before initializing the agent.
+Invalid or unknown IDs return HTTP 422; they never fall back to the whole library.
+For example, `{"message": "Which books are available?"}` needs no attachments.
 The answer tool uses hybrid retrieval by default: 20 candidates per branch,
 equal-contribution RRF with constant 60, Cohere reranking of the full union, and
 five final passages. Retrieval method
@@ -317,11 +344,42 @@ still 20 per method; set `candidate_limit=100` to reproduce the Church experimen
 The caller keeps the selected IDs between requests; the backend does not persist
 chats or attachment state.
 
-Attachments enter an `AgentContext` in `agent/context.py`, passed to the agent.
+`AgentContext` in `agent/context.py` snapshots the attached books, or all catalog
+books when there are no attachments, and is passed to the agent.
 LangChain injects this context into the tools; the model sees only the question
-argument on `answer_book_question`. Its `list_books` tool exposes only attached
-books. The HTTP API serves only `/chat`; catalog listing is available through
-the CLI until a frontend book-selection workflow is implemented.
+argument on `answer_book_question`. Its `list_available_books` tool always queries
+the entire catalog, regardless of attachments, without changing retrieval scope.
+An empty library produces an explicit no-books tool result without calling the
+retriever, embedding model, or reranker. The HTTP API serves `/chat` and
+`GET /books/{id}/cover`; catalog listing is also available through the CLI.
+
+`list_available_books` returns a validated public object in the existing
+`tool-output-available` event:
+
+```json
+{
+  "books": [
+    {
+      "id": 1,
+      "title": "Pet Sematary",
+      "authors": "Stephen King",
+      "categories": ["Horror", "Fiction"],
+      "cover_url": "/books/1/cover"
+    }
+  ]
+}
+```
+
+All books are returned in title/ID order, without pagination. `authors` and
+`cover_url` may be `null`; `categories` is always a list. Internal hashes and image
+bytes are excluded from the tool output. Cover URLs are relative to the backend
+origin; a separate frontend origin must resolve or proxy them against that backend.
+The cover endpoint returns the stored image and its content type, 404 for a missing
+book or cover, and 503 for database failures. It does not require model credentials.
+The agent is instructed to write a brief introduction in the user's language,
+without repeating card data as a text list, or to explain that the catalog is
+empty. The frontend shows tool activity in chronological order, followed by the
+final introduction and book cards once the assistant turn settles.
 
 Chat uses plain-text model output so answer tokens stream directly. Evaluations
 and notebooks retain provider-native structured output through `get_agent()` and
@@ -333,12 +391,13 @@ the tool log. The tool makes no chat-model call: the agent writes the answer
 directly from these passages. A typical content question uses two agent model
 calls: tool selection, then answer generation. The standalone `ask_question()`
 workflow used by the `ask` CLI retains its own answer generation. The agent
-uses the attached IDs automatically. SQL filters with `book_id IN (...)`,
-then selects the five closest chunks across the pooled attachments. A book need
+uses the resolved IDs automatically. SQL filters with `book_id IN (...)`,
+then selects the five closest chunks across the resolved books. A book need
 not contribute a chunk to that global top five. Each source retains its own
 book ID, title, chapter, and chunk index. The model cannot widen the scope by
-supplying another book ID. Questions normally omit the title because the caller
-has already chosen the books. Multiple attachments are supported per request.
+supplying another book ID. With attachments, the caller chooses the books;
+without attachments, all books in the catalog snapshot are eligible.
+Multiple attachments are supported per request.
 Answers are limited to the retrieved context.
 
 Messages must contain 1-4000 characters after trimming surrounding whitespace;
@@ -353,7 +412,7 @@ FastAPI's `/docs` remains available for inspecting the chat request schema.
 
 ### Streaming chat
 
-`POST /chat` accepts a `{message, book_ids}` body and streams an independent
+`POST /chat` accepts a `{message, book_ids?}` body and streams an independent
 response using the same agent, tools, attachment scope, and limits. It disables
 structured model output so answer tokens can stream directly as plain text.
 It uses `agent.astream_events(version="v2")` and FastAPI `StreamingResponse`, with
@@ -428,7 +487,7 @@ each Python package also contains `__init__.py`):
 │   └── src/
 │       ├── app/                    # Routes, layout, Tailwind styles
 │       ├── components/ui/          # shadcn primitives
-│       ├── components/ai-elements/ # AI Elements conversation component
+│       ├── components/            # Chat composition and tool result views
 │       └── lib/
 ├── src/
 │   └── rag_library/

@@ -3,19 +3,20 @@
 import logging
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, HTTPException
-from fastapi.responses import StreamingResponse
+from fastapi import APIRouter, Depends, HTTPException, Path
+from fastapi.responses import Response, StreamingResponse
 
 from rag_library.agent.agent import get_agent
 from rag_library.agent.context import AgentContext, create_agent_context
 from rag_library.api.schemas import ChatRequest
 from rag_library.api.streaming import stream_chat
+from rag_library.catalog import get_book_cover
 
 logger = logging.getLogger(__name__)
 
 
 def attachment_dependency(request: ChatRequest) -> AgentContext:
-    """Validate selected books before any agent is initialized."""
+    """Resolve the retrieval scope before any agent is initialized."""
     try:
         return create_agent_context(request.book_ids)
     except ValueError as error:
@@ -28,7 +29,7 @@ def attachment_dependency(request: ChatRequest) -> AgentContext:
 def chat_agent_dependency(
     context: Annotated[AgentContext, Depends(attachment_dependency)],
 ):
-    """Require validated attachments, then build a fresh streaming agent."""
+    """Require a resolved retrieval scope, then build a fresh streaming agent."""
     try:
         return get_agent(structured_output=False)
     except Exception as error:
@@ -37,6 +38,24 @@ def chat_agent_dependency(
 
 
 router = APIRouter()
+
+
+@router.get("/books/{book_id}/cover", tags=["books"], response_class=Response)
+def book_cover(book_id: Annotated[int, Path(gt=0)]) -> Response:
+    """Serve stored cover bytes; missing books and missing covers return 404."""
+    try:
+        cover = get_book_cover(book_id)
+    except Exception as error:
+        logger.exception("Book cover unavailable")
+        raise HTTPException(503, "Book cover unavailable") from error
+    if cover is None:
+        raise HTTPException(404, "Book cover not found")
+    data, media_type = cover
+    return Response(
+        content=data,
+        media_type=media_type,
+        headers={"X-Content-Type-Options": "nosniff"},
+    )
 
 
 @router.post("/chat", tags=["agent"], response_class=StreamingResponse)
