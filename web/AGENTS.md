@@ -11,6 +11,11 @@ and `make build`. From `web/`, use `pnpm dev`, `pnpm lint`, `pnpm typecheck`,
 Use Node 24 and pnpm 10.33.2, recorded in `.node-version` and `package.json`.
 Commit `pnpm-lock.yaml` with dependency changes.
 
+## Design
+
+Read [DESIGN.md](DESIGN.md) before changing the interface. It records the
+approved dark palette, typography, layout, and interaction conventions.
+
 ## Structure and scope
 
 - Keep routes/layouts in `src/app/`, shadcn primitives in `src/components/ui/`,
@@ -20,17 +25,32 @@ Commit `pnpm-lock.yaml` with dependency changes.
   Prefer Server Components; add client boundaries for interactive behavior.
 - Add individual shadcn or AI Elements components as needed through their
   registries; do not install the entire component catalog by default.
-- This is a starter page. Live chat, book selection, streaming, conversation
-  persistence, API calls, and LangChain.js are deferred.
+- The UI consumes Python `/chat` through the same-origin Next.js `/api/chat`
+  streaming proxy. `useChat` owns SDK messages/status/cancellation through one
+  SDK `Chat` instance per conversation; the shell owns only sidebar metadata and
+  drafts. Chats are in memory; every question is independent.
+  Book selection, conversation history in the agent, persistence, source panels,
+  background generation, and LangChain.js are deferred.
 - Agent execution, retrieval, database access, and model credentials belong
-  to Python. The AI SDK dependency supports AI Elements types; it does not
+  to Python. AI SDK React manages frontend chat state and transport; it does not
   establish a second agent. Python owns the streaming backend contract.
-- `.env.local` is local configuration. `BACKEND_API_URL` is reserved for future
-  server-side calls and is currently unused. Never expose model keys through
-  `NEXT_PUBLIC_*` variables. Keep model keys in the root `.env`.
+- `.env.local` configures server-only `BACKEND_API_URL` and required
+  `CHAT_BOOK_IDS` (comma-separated current catalog IDs). All conversations share
+  these test books. The proxy injects IDs and sends only the latest message.
+  Never expose model keys through `NEXT_PUBLIC_*`; keep them in the root `.env`.
 - Preserve book/chapter/chunk provenance when API integration is added.
   Python `/chat` streams independent messages with explicit book attachments
   using the AI SDK UI message SSE protocol.
 
-Run `make check-web` and `make build` for scaffold changes, and backend checks
-when changing Python code or the shared Makefile.
+Run `pnpm test`, `make check-web`, and `make build` for frontend integration
+changes, and backend checks when changing Python code or the shared Makefile.
+
+<!-- BEGIN:nextjs-agent-rules -->
+
+## This is NOT the Next.js you know
+
+This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
+
+This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
+
+<!-- END:nextjs-agent-rules -->

@@ -2,7 +2,7 @@
 
 ## 2026-10-22
 
-- **Agent streaming:** Added new endpoint /chat to start streaming responses using SSE.
+- **Agent streaming:** Connected Python SSE to the UI through AI SDK transport; explicit completion distinguishes interrupted answers, while displayed conversation history stays separate from stateless agent context.
 
 ## 2026-10-21
 

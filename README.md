@@ -1,17 +1,17 @@
 # RAG Library
 
 A Python book catalog agent exposed through FastAPI, with EPUB ingestion and
-vector, BM25, and hybrid search CLI workflows, plus a Next.js web starter.
+vector, BM25, and hybrid search CLI workflows, plus a Next.js streaming chat UI.
 Python is managed with `uv`; the independent `web/` app uses pnpm.
 
 This is a learning and experimentation project for querying and analyzing books.
 Keep retrieval, chunking, persistence, prompts, and evaluation understandable,
 preserve book/chapter/chunk provenance, and add infrastructure when it solves a
-current problem. The web app currently displays a starter page; chat integration
-and production deployment are deferred.
+current problem. The web app streams independent questions through the Python
+agent; conversation memory and production deployment remain deferred.
 
 The stack uses FastAPI, SQLAlchemy 2.x, PostgreSQL with pgvector,
-LangChain components, and OpenAI embedding and chat models. The web starter
+LangChain components, and OpenAI embedding and chat models. The web app
 uses Next.js App Router, TypeScript, Tailwind CSS v4, shadcn/ui, and AI Elements.
 
 ## Requirements
@@ -57,7 +57,7 @@ uv run uvicorn rag_library.main:app --reload
 
 The API is available at <http://127.0.0.1:8000>. Interactive documentation is at `/docs`.
 
-## Run the web starter
+## Run the web chat
 
 Run each app in its own terminal from the repository root:
 
@@ -69,16 +69,19 @@ make api
 make web
 ```
 
-The web app is available at <http://localhost:3000>. It runs independently of
-the API and needs no database or model credentials yet. Optional future API
-configuration is documented in `web/.env.example`; copy it to `web/.env.local`
-when needed. `BACKEND_API_URL` is reserved for server-side calls and is currently
-unused. Keep backend secrets in the root `.env`.
+Copy `web/.env.example` to `web/.env.local`. Set `CHAT_BOOK_IDS` to a
+comma-separated list of current numeric catalog IDs from
+`uv run python -m rag_library.cli.books`. Every conversation uses these test
+books. `BACKEND_API_URL` defaults to `http://127.0.0.1:8000`; keep model and
+database credentials in the root `.env`.
 
-The starter includes an AI Elements empty state and shadcn primitives. Live
-chat, book selection, streaming, conversation history, and LangChain.js are
-deferred in the frontend. Python owns agent execution and retrieval;
-`POST /chat` provides the stateless streaming backend.
+The web app is available at <http://localhost:3000>. It proxies questions through
+Next.js `/api/chat` to Python `/chat`, streaming text and retrieval status.
+Chats and drafts are in memory and reset on refresh. Each question is independent;
+displayed conversation history is not sent to the agent. Switching chats cancels
+the current response and preserves partial output; failures offer manual Retry.
+Book selection, source panels, conversation persistence, and LangChain.js remain
+deferred. Source events are retained in message state for future provenance UI.
 
 | Command | Purpose |
 | --- | --- |
@@ -391,10 +394,11 @@ because the HTTP status has already been sent. Disconnects close the event
 iterator and cancel async graph execution; an already-running synchronous
 retrieval/provider call may finish in its worker thread.
 
-Frontend integration is deferred. Its transport must send `{message, book_ids}`
-instead of AI SDK's default messages body, and render custom `data-source` parts.
-The caller owns chat state and book attachments; no history, persistence, or
-authentication is added here.
+The frontend uses AI SDK transport to consume this protocol. Its server-side
+proxy sends `{message, book_ids}` with configured test attachments, and retains
+custom `data-source` parts without a source panel. It requires `finish` before
+treating a response as complete. The caller owns chat state; no model history,
+persistence, or authentication is added here.
 
 ## Project layout
 

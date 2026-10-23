@@ -113,9 +113,10 @@ uv run ruff format --check .
 - Next.js App Router, React, TypeScript, Tailwind CSS v4, shadcn/ui, and
   AI Elements in `web/`, with Node 24 and pnpm 10.33.2
 
-The frontend is a starter page; API integration, live chat, streaming, book
-selection, conversation persistence, and LangChain.js are deferred. Python owns
-agent and retrieval behavior. There is no AWS deployment, graph database,
+The frontend consumes Python `/chat` through a same-origin Next.js SSE proxy
+with server-configured test book IDs. Chats are in memory and questions remain
+independent. Book selection, source panels, model conversation history,
+persistence, and LangChain.js remain deferred. Python owns agent and retrieval behavior. There is no AWS deployment, graph database,
 advanced agent workflow, or production ingestion service yet.
 
 ## Project structure and conventions
