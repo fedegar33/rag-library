@@ -35,7 +35,7 @@ when test book IDs are missing or invalid.
   latest failed question, retaining the original reply. Requests never retry automatically.
 - **Every question is independent.** Previous messages are displayed but are not
   sent to the agent. There is no session memory, background generation, or Stop button.
-- Attachments are read-only catalog ID labels. Book selection, uploads, source
+- The composer shows a read-only attachment count. Book selection, uploads, source
   panels, and conversation persistence remain deferred. Source events are retained
   in assistant message state for a future provenance view.
 

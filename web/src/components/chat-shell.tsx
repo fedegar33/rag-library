@@ -1,16 +1,6 @@
 "use client";
 
-import {
-  ArrowRight,
-  ArrowUp,
-  BookOpen,
-  ChevronRight,
-  MessageCircle,
-  PanelLeftClose,
-  PanelLeftOpen,
-  Plus,
-  Sparkles,
-} from "lucide-react";
+import { ArrowUp, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useChat } from "@ai-sdk/react";
 import {
@@ -18,19 +8,8 @@ import {
   ConversationContent,
   ConversationScrollButton,
 } from "@/components/ai-elements/conversation";
-import { emptyChat, starters, type Chat } from "@/lib/chat";
+import { emptyChat, type Chat } from "@/lib/chat";
 import { messageText } from "@/lib/chat-transport";
-
-function LibraryMark({ small = false }: { small?: boolean }) {
-  return (
-    <span
-      className={small ? "library-mark small" : "library-mark"}
-      aria-hidden="true"
-    >
-      <BookOpen strokeWidth={1.4} />
-    </span>
-  );
-}
 
 function ChatSidebar({
   chats,
@@ -48,11 +27,7 @@ function ChatSidebar({
   return (
     <div className="sidebar-inner">
       <div className="sidebar-brand">
-        <LibraryMark small />
-        <span>
-          RAG Library
-          <span className="brand-caption">A space for curious minds</span>
-        </span>
+        <span>RAG Library</span>
         <button
           className="icon-button sidebar-close"
           aria-label="Close sidebar"
@@ -62,65 +37,23 @@ function ChatSidebar({
         </button>
       </div>
       <button className="new-chat" onClick={onNew}>
-        <Plus size={17} />
-        New conversation
-        <span className="new-chat-plus" aria-hidden="true">
-          ↗
-        </span>
+        New chat
       </button>
       <nav aria-label="Conversations" className="chat-navigation">
-        {(["Today", "Yesterday"] as const).map((group) => (
-          <div
-            className="chat-group"
-            key={group}
-            hidden={!chats.some((chat) => chat.group === group)}
+        <h2>Recents</h2>
+        {chats.map((chat) => (
+          <button
+            key={chat.id}
+            className={`chat-link${chat.id === activeId ? " selected" : ""}`}
+            aria-current={chat.id === activeId ? "page" : undefined}
+            onClick={() => onSelect(chat.id)}
+            title={chat.title}
           >
-            <h2>{group}</h2>
-            {chats
-              .filter((chat) => chat.group === group)
-              .map((chat) => (
-                <button
-                  key={chat.id}
-                  className={`chat-link${chat.id === activeId ? " selected" : ""}`}
-                  aria-current={chat.id === activeId ? "page" : undefined}
-                  onClick={() => onSelect(chat.id)}
-                >
-                  <MessageCircle size={16} strokeWidth={1.6} />
-                  <span className="chat-link-text">
-                    <span>{chat.title}</span>
-                    <span className="chat-link-detail">
-                      {chat.books.length
-                        ? `${chat.books.length} ${chat.books.length === 1 ? "book" : "books"}`
-                        : "General conversation"}
-                    </span>
-                  </span>
-                  {chat.id === activeId && (
-                    <span className="active-dot" aria-hidden="true" />
-                  )}
-                </button>
-              ))}
-          </div>
+            <span>{chat.title}</span>
+          </button>
         ))}
       </nav>
-      <div className="sidebar-bottom">
-        <div className="sidebar-note">
-          <BookOpen size={18} strokeWidth={1.5} />
-          <p>
-            Good questions.
-            <br />
-            <span>Even better conversations.</span>
-          </p>
-        </div>
-        <div className="profile-row">
-          <span className="profile-avatar" aria-hidden="true">
-            Y
-          </span>
-          <div>
-            Your reading space<span>This session only</span>
-          </div>
-          <span className="preview-dot" aria-hidden="true" />
-        </div>
-      </div>
+      <p className="sidebar-footer">Your reading space</p>
     </div>
   );
 }
@@ -272,69 +205,13 @@ export function ChatShell({
           >
             <PanelLeftOpen size={19} />
           </button>
-          <div className="header-path">
-            <span className="header-library">Your library</span>
-            <ChevronRight size={13} />
-            <h1>{chat.title}</h1>
-          </div>
-          <span className="demo-badge">
-            <span aria-hidden="true" />
-            Agent chat
-          </span>
+          <h1>{chat.title}</h1>
         </header>
-        {chat.books.length > 0 && (
-          <section className="attached-books" aria-label="Attached books">
-            <BookOpen size={15} />
-            <span className="attached-label">In this conversation</span>
-            {chat.books.map((book) => (
-              <span
-                className="book-chip"
-                key={book.id}
-                title={`Catalog ID ${book.id}`}
-              >
-                {book.title}
-              </span>
-            ))}
-          </section>
-        )}
         {messages.length === 0 ? (
           <section className="welcome" aria-label="Start a conversation">
             <div className="welcome-content">
-              <div className="welcome-eyebrow">
-                <span />
-                BETWEEN THE LINES
-                <span />
-              </div>
-              <LibraryMark />
-              <h2>
-                A good book is just
-                <br />
-                the beginning.
-              </h2>
-              <p>
-                Follow a thought. Ask a question.
-                <br className="mobile-break" /> See where the conversation takes
-                you.
-              </p>
-              <div className="starter-grid">
-                {starters.map((starter, index) => (
-                  <button
-                    className="starter-card"
-                    key={starter.label}
-                    onClick={() => {
-                      setDraft(starter.text);
-                      composer.current?.focus();
-                    }}
-                  >
-                    <span className="starter-top">
-                      <span className="starter-number">0{index + 1}</span>
-                      <ArrowRight size={16} />
-                    </span>
-                    <strong>{starter.label}</strong>
-                    <span>{starter.detail}</span>
-                  </button>
-                ))}
-              </div>
+              <h2>What’s on your mind?</h2>
+              <p>A question, a passage, a new perspective.</p>
             </div>
           </section>
         ) : (
@@ -356,7 +233,6 @@ export function ChatShell({
                 >
                   {message.role === "assistant" && (
                     <div className="assistant-label">
-                      <LibraryMark small />
                       <span>RAG Library</span>
                       {message.metadata?.interruption && (
                         <span className="sample-label">Interrupted</span>
@@ -393,7 +269,6 @@ export function ChatShell({
               ))}
               {busy && lastMessage?.role !== "assistant" && (
                 <div className="assistant-label" role="status">
-                  <LibraryMark small />
                   <span>RAG Library</span>
                   <span className="response-status">Thinking…</span>
                 </div>
@@ -415,7 +290,7 @@ export function ChatShell({
             <textarea
               ref={composer}
               id="message-input"
-              placeholder="Where would you like to begin?"
+              placeholder="Ask about your books…"
               rows={1}
               maxLength={4000}
               aria-describedby="chat-limits"
@@ -435,7 +310,6 @@ export function ChatShell({
             />
             <div className="composer-toolbar">
               <span className="book-status">
-                <BookOpen size={15} />
                 {chat.books.length === 0
                   ? "No books attached"
                   : `${chat.books.length} ${chat.books.length === 1 ? "book" : "books"} attached`}
@@ -459,7 +333,6 @@ export function ChatShell({
             </div>
           </form>
           <p className="demo-note" id="chat-limits">
-            <Sparkles size={12} aria-hidden="true" />
             Each question is independent. Chats reset on refresh.
           </p>
         </div>
