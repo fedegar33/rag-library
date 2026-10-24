@@ -8,9 +8,10 @@ from fastapi.responses import Response, StreamingResponse
 
 from rag_library.agent.agent import get_agent
 from rag_library.agent.context import AgentContext, create_agent_context
+from rag_library.agent.models import AvailableBooksResult
 from rag_library.api.schemas import ChatRequest
 from rag_library.api.streaming import stream_chat
-from rag_library.catalog import get_book_cover
+from rag_library.catalog import get_book_cover, list_books
 
 logger = logging.getLogger(__name__)
 
@@ -40,6 +41,16 @@ def chat_agent_dependency(
 router = APIRouter()
 
 
+@router.get("/books", tags=["books"], response_model=AvailableBooksResult)
+def books() -> AvailableBooksResult:
+    """Expose public catalog metadata without invoking the agent or retrieval."""
+    try:
+        return AvailableBooksResult(books=list_books())
+    except Exception as error:
+        logger.exception("Book catalog unavailable")
+        raise HTTPException(503, "Book catalog unavailable") from error
+
+
 @router.get("/books/{book_id}/cover", tags=["books"], response_class=Response)
 def book_cover(book_id: Annotated[int, Path(gt=0)]) -> Response:
     """Serve stored cover bytes; missing books and missing covers return 404."""
@@ -64,9 +75,9 @@ async def chat(
     context: Annotated[AgentContext, Depends(attachment_dependency)],
     agent: Annotated[Any, Depends(chat_agent_dependency)],
 ) -> StreamingResponse:
-    """Stream one independent answer, tool activity, and retrieved sources."""
+    """Stream the next answer using recent history and the current book scope."""
     return StreamingResponse(
-        stream_chat(agent, request.message, context),
+        stream_chat(agent, request.to_messages(), context),
         media_type="text/event-stream",
         headers={
             "x-vercel-ai-ui-message-stream": "v1",

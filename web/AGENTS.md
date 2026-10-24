@@ -16,6 +16,33 @@ Commit `pnpm-lock.yaml` with dependency changes.
 Read [DESIGN.md](DESIGN.md) before changing the interface. It records the
 approved dark palette, typography, layout, and interaction conventions.
 
+### Chat UX references
+
+When a proposed change introduces or materially alters a chat interaction,
+consult the relevant current references before implementing it. Use judgment:
+routine styling fixes and internal refactors do not need a research pass.
+
+- [AI UX Playground — Chat UX](https://aiuxplayground.com/frameworks/chat-ux):
+  primary framework for context, onboarding, input, progress visibility,
+  evidence, refinement, structured responses, and error recovery.
+- [Shape of AI](https://www.shapeof.ai/): concrete patterns and product examples,
+  especially controls, attachments, citations, and references.
+- [Google — Design AI user experiences](https://web.dev/learn/ai/ux-patterns):
+  combining conversation with structured UI and making system state visible.
+- [Google — People + AI Guidebook](https://pair.withgoogle.com/guidebook-v2/chapters)
+  and [Microsoft HAX Toolkit](https://www.microsoft.com/en-us/haxtoolkit/):
+  expectations, user control, and recovery from failures.
+- [NN/g — Explainable AI in Chat Interfaces](https://www.nngroup.com/articles/explainable-ai/):
+  evidence presentation and avoiding misleading signals of reliability.
+
+Read the sections relevant to the decision; do not review every resource for
+all changes. Apply patterns to this book RAG app's actual capabilities and
+approved design rather than copying features or expanding scope. Consider the
+whole turn: active book context, real progress, streaming and interruption,
+text/tool-result ordering, usable output, source verification, and recovery.
+Briefly explain a reference-backed decision when it materially shapes the UX.
+User decisions and this project's conventions take precedence.
+
 ## Structure and scope
 
 - Keep routes/layouts in `src/app/`, shadcn primitives in `src/components/ui/`,
@@ -40,18 +67,28 @@ approved dark palette, typography, layout, and interaction conventions.
 - The UI consumes Python `/chat` through the same-origin Next.js `/api/chat`
   streaming proxy. `useChat` owns SDK messages/status/cancellation through one
   SDK `Chat` instance per conversation; the shell owns only sidebar metadata and
-  drafts. Chats are in memory; every question is independent.
-  Book selection, conversation history in the agent, persistence, source panels,
+  drafts. Chats are in memory; send conversational text and completed tool
+  calls/results through `chat-history.ts`. Python applies a sliding window by
+  complete turns; never trim or delete the displayed transcript to enforce it.
+  Omit incomplete tool calls and duplicate source data, preserve matched IDs,
+  and use the newest question's book selection. Server persistence, source panels,
   background generation, and LangChain.js are deferred.
 - Agent execution, retrieval, database access, and model credentials belong
   to Python. AI SDK React manages frontend chat state and transport; it does not
   establish a second agent. Python owns the streaming backend contract.
-- `.env.local` configures server-only `BACKEND_API_URL` and required
-  `CHAT_BOOK_IDS` (comma-separated current catalog IDs). All conversations share
-  these test books. The proxy injects IDs and sends only the latest message.
+- `.env.local` configures server-only `BACKEND_API_URL`. The composer owns a
+  selection per chat: empty means the whole library; explicit IDs restrict
+  retrieval exclusively to those books. `CHAT_BOOK_IDS` is no longer used.
+  The proxy validates client IDs and Python validates catalog membership.
   Never expose model keys through `NEXT_PUBLIC_*`; keep them in the root `.env`.
+- Load picker metadata through `GET /api/books` → Python `GET /books`, without
+  running the agent. Keep selection edits provisional until Apply; closing
+  discards them. Display up to two removable chips and a +N shortcut. Disable
+  scope changes during generation and provide Stop. New chats start unfiltered.
+  Save book IDs and titles on each user message; retries use its original scope.
+  Catalog errors retain current selection and never broaden retrieval silently.
 - Preserve book/chapter/chunk provenance when API integration is added.
-  Python `/chat` streams independent messages with explicit book attachments
+  Python `/chat` streams answers with explicit book attachments and recent history
   using the AI SDK UI message SSE protocol.
 
 Run `pnpm test`, `make check-web`, and `make build` for frontend integration

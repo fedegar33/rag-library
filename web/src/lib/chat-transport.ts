@@ -2,6 +2,7 @@ import { LIST_AVAILABLE_BOOKS_TOOL } from "./tools-constants.ts";
 import { DefaultChatTransport, type UIMessageChunk } from "ai";
 import type { LibraryMessage } from "./chat.ts";
 import { readAvailableBooks } from "./available-books.ts";
+import { conversationHistory } from "./chat-history.ts";
 
 export function messageText(message: LibraryMessage) {
   return message.parts
@@ -22,7 +23,10 @@ export class LibraryChatTransport extends DefaultChatTransport<LibraryMessage> {
           (message) => message.role === "user",
         );
         return {
-          body: { message: latestQuestion ? messageText(latestQuestion) : "" },
+          body: {
+            messages: conversationHistory(messages),
+            book_ids: latestQuestion?.metadata?.books?.map((book) => book.id) ?? [],
+          },
         };
       },
     });

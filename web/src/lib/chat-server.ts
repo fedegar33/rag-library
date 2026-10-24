@@ -1,32 +1,11 @@
 import process from "node:process";
 
-export type ChatConfig = {
-  bookIds: number[];
-  backendUrl: string;
-  error?: string;
-};
+export type ChatConfig = { backendUrl: string };
 
 export function readChatConfig(
   env: Record<string, string | undefined> = process.env,
 ): ChatConfig {
-  const backendUrl = env.BACKEND_API_URL || "http://127.0.0.1:8000";
-  const entries = (env.CHAT_BOOK_IDS ?? "")
-    .split(",")
-    .map((value) => value.trim());
-  if (
-    entries.some(
-      (value) =>
-        !/^[1-9]\d*$/.test(value) || !Number.isSafeInteger(Number(value)),
-    )
-  ) {
-    return {
-      bookIds: [],
-      backendUrl,
-      error:
-        "Test books are not configured. Set CHAT_BOOK_IDS in web/.env.local to current catalog IDs, then restart the web server.",
-    };
-  }
-  return { bookIds: [...new Set(entries.map(Number))], backendUrl };
+  return { backendUrl: env.BACKEND_API_URL || "http://127.0.0.1:8000" };
 }
 
 function failure(message: string, status: number) {
@@ -39,25 +18,36 @@ function failure(message: string, status: number) {
   });
 }
 
-// Keep configuration and request validation on the server. Never forward client history or IDs.
+// Validate scope at the proxy; Python validates IDs against the current catalog.
+// Forward conversation data only; Python validates tool pairs and windows history.
 export async function proxyChat(request: Request, config = readChatConfig()) {
-  if (config.error) return failure(config.error, 503);
   let body: unknown;
   try {
     body = await request.json();
   } catch {
     return failure("Send a valid JSON message.", 400);
   }
-  const message =
-    body && typeof body === "object" && "message" in body
-      ? body.message
-      : undefined;
-  if (
-    typeof message !== "string" ||
-    !message.trim() ||
-    Array.from(message.trim()).length > 4000
-  ) {
+  const record = body && typeof body === "object" ? body as Record<string, unknown> : {};
+  const { message, messages } = record;
+  const validQuestion = (value: unknown) => typeof value === "string" &&
+    Boolean(value.trim()) && Array.from(value.trim()).length <= 4000;
+  let conversation: Record<string, unknown>;
+  if (messages !== undefined) {
+    if (message !== undefined || !Array.isArray(messages) || !messages.length || messages.length > 1000 ||
+      messages.some((item) => !item || typeof item !== "object" || !["user", "assistant", "tool"].includes(item.role)) ||
+      messages[0].role !== "user" || messages.at(-1).role !== "user" ||
+      !validQuestion(messages.at(-1).content)) {
+      return failure("Send a valid conversation ending with your question.", 422);
+    }
+    conversation = { messages };
+  } else if (validQuestion(message)) {
+    conversation = { message: (message as string).trim() };
+  } else {
     return failure("Enter a question between 1 and 4,000 characters.", 422);
+  }
+  const ids = body && typeof body === "object" && "book_ids" in body ? body.book_ids : [];
+  if (!Array.isArray(ids) || ids.some((id) => !Number.isSafeInteger(id) || id <= 0)) {
+    return failure("Choose valid books before sending your question.", 422);
   }
   try {
     const upstream = await fetch(
@@ -69,8 +59,8 @@ export async function proxyChat(request: Request, config = readChatConfig()) {
           Accept: "text/event-stream",
         },
         body: JSON.stringify({
-          message: message.trim(),
-          book_ids: config.bookIds,
+          ...conversation,
+          book_ids: [...new Set(ids)],
         }),
         signal: request.signal,
         cache: "no-store",
@@ -80,7 +70,7 @@ export async function proxyChat(request: Request, config = readChatConfig()) {
       await upstream.body?.cancel();
       if (upstream.status === 422)
         return failure(
-          "The configured test books are unavailable. Check CHAT_BOOK_IDS against the current catalog.",
+          "The conversation or selected books are invalid. Review your selection or start a new chat.",
           422,
         );
       return failure(

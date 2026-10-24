@@ -1,29 +1,32 @@
 "use client";
 
-import { ArrowUp } from "lucide-react";
+import { ArrowUp, Square } from "lucide-react";
+import { BookContext } from "@/components/book-context";
+import type { Book } from "@/lib/chat";
 import type { FormEvent, Ref } from "react";
 import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupTextarea } from "@/components/ui/input-group";
 
 export function ChatComposer({
   draft,
-  bookCount,
+  books,
+  onBooksChange,
+  onStop,
   busy,
-  configurationError,
   inputRef,
   onDraftChange,
   onSubmit,
 }: {
   draft: string;
-  bookCount: number;
+  books: Book[];
+  onBooksChange: (books: Book[]) => void;
+  onStop: () => void;
   busy: boolean;
-  configurationError?: string;
   inputRef: Ref<HTMLTextAreaElement>;
   onDraftChange: (value: string) => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
 }) {
   return (
     <div className="composer-area">
-      {configurationError && <p className="configuration-error" role="alert">{configurationError}</p>}
       <form onSubmit={onSubmit} aria-busy={busy}>
         <label className="sr-only" htmlFor="message-input">Message RAG Library</label>
         <InputGroup className="composer">
@@ -44,26 +47,25 @@ export function ChatComposer({
             }}
           />
           <InputGroupAddon align="block-end" className="composer-toolbar">
-            <span className="book-status">
-              {bookCount ? `${bookCount} ${bookCount === 1 ? "book" : "books"} attached` : "No books attached"}
-            </span>
+            <BookContext books={books} busy={busy} onChange={onBooksChange} />
             <div className="composer-actions">
               <span className="send-hint">Enter to send</span>
               <InputGroupButton
-                type="submit"
+                type={busy ? "button" : "submit"}
+                onClick={busy ? onStop : undefined}
                 variant="default"
                 size="icon-sm"
                 className="send-button"
-                aria-label="Send message"
-                disabled={!draft.trim() || busy || !!configurationError || !bookCount}
+                aria-label={busy ? "Stop response" : "Send message"}
+                disabled={!busy && !draft.trim()}
               >
-                <ArrowUp size={19} aria-hidden="true" />
+                {busy ? <Square size={16} aria-hidden="true" /> : <ArrowUp size={19} aria-hidden="true" />}
               </InputGroupButton>
             </div>
           </InputGroupAddon>
         </InputGroup>
       </form>
-      <p className="demo-note" id="chat-limits">Each question is independent. Chats reset on refresh.</p>
+      <p className="demo-note" id="chat-limits">Recent conversation is kept in context. Chats reset on refresh.</p>
     </div>
   );
 }

@@ -7,8 +7,9 @@ Python is managed with `uv`; the independent `web/` app uses pnpm.
 This is a learning and experimentation project for querying and analyzing books.
 Keep retrieval, chunking, persistence, prompts, and evaluation understandable,
 preserve book/chapter/chunk provenance, and add infrastructure when it solves a
-current problem. The web app streams independent questions through the Python
-agent; conversation memory and production deployment remain deferred.
+current problem. The web app sends recent conversation and streams answers through
+the Python agent; server-side conversation persistence and production deployment
+remain deferred.
 
 The stack uses FastAPI, SQLAlchemy 2.x, PostgreSQL with pgvector,
 LangChain components, and OpenAI embedding and chat models. The web app
@@ -49,6 +50,23 @@ they use the project's environment; no manual environment activation is needed.
 EPUB inspection, offline tests, and code checks do not require a running database
 or OpenAI credentials.
 
+### LangSmith tracing
+
+The backend loads the root `.env` into the process environment so LangSmith can
+read its SDK settings. Exported environment variables take precedence. To enable:
+
+```dotenv
+LANGSMITH_TRACING=true
+LANGSMITH_API_KEY=your-key
+LANGSMITH_PROJECT=rag-library
+LANGSMITH_ENDPOINT=https://api.smith.langchain.com
+```
+
+Restart the API or notebook kernel after changing tracing settings. LangChain
+agent/model/tool executions are traced automatically when enabled. `make check-api`
+explicitly disables tracing for offline tests, regardless of the local `.env`.
+For another command, use `LANGSMITH_TRACING=false uv run ...` to disable tracing.
+
 ## Run the API
 
 ```bash
@@ -69,19 +87,19 @@ make api
 make web
 ```
 
-Copy `web/.env.example` to `web/.env.local`. Set `CHAT_BOOK_IDS` to a
-comma-separated list of current numeric catalog IDs from
-`uv run python -m rag_library.cli.books`. Every conversation uses these test
-books. `BACKEND_API_URL` defaults to `http://127.0.0.1:8000`; keep model and
+Copy `web/.env.example` to `web/.env.local`. Select books through the composer's
+Books panel; an empty selection searches the whole library. `CHAT_BOOK_IDS` is
+no longer used. `BACKEND_API_URL` defaults to `http://127.0.0.1:8000`; keep model and
 database credentials in the root `.env`.
 
 The web app is available at <http://localhost:3000>. It proxies questions through
 Next.js `/api/chat` to Python `/chat`, streaming text and retrieval status.
-Chats and drafts are in memory and reset on refresh. Each question is independent;
-displayed conversation history is not sent to the agent. Switching chats cancels
+Chats and drafts are in memory and reset on refresh. Messages and completed tool
+executions are sent as history; Python keeps a sliding window of recent turns.
+Switching chats cancels
 the current response and preserves partial output; failures offer manual Retry.
-Book selection, source panels, conversation persistence, and LangChain.js remain
-deferred. Source events are retained in message state for future provenance UI.
+Source panels, conversation persistence, and LangChain.js remain deferred.
+Source events are retained in message state for future provenance UI.
 
 | Command | Purpose |
 | --- | --- |
@@ -315,7 +333,7 @@ output label RRF scores explicitly instead of treating them as cosine similarity
 
 ## Book agent
 
-`POST /chat` streams one independent message using a LangChain agent with
+`POST /chat` streams one answer using a fresh LangChain agent invocation with
 two tools, `list_available_books` and `answer_book_question`. Set `DATABASE_URL`, `OPENAI_API_KEY`,
 and `COHERE_API_KEY`; the agent uses
 `OPENAI_CHAT_MODEL` (default: `gpt-4o-mini`). Start the API as described above,
@@ -344,14 +362,19 @@ still 20 per method; set `candidate_limit=100` to reproduce the Church experimen
 The caller keeps the selected IDs between requests; the backend does not persist
 chats or attachment state.
 
-`AgentContext` in `agent/context.py` snapshots the attached books, or all catalog
-books when there are no attachments, and is passed to the agent.
+`AgentContext` in `agent/context.py` stores only validated `attached_book_ids`
+and retrieval settings, and is passed to the agent. Empty IDs mean the whole
+library; `answer_book_question` resolves the current catalog when retrieval runs.
+Book metadata is not carried in the runtime context. Evaluation generation
+resolves stable EPUB `book_refs` separately and saves book metadata with answers.
 LangChain injects this context into the tools; the model sees only the question
 argument on `answer_book_question`. Its `list_available_books` tool always queries
 the entire catalog, regardless of attachments, without changing retrieval scope.
 An empty library produces an explicit no-books tool result without calling the
-retriever, embedding model, or reranker. The HTTP API serves `/chat` and
+retriever, embedding model, or reranker. The HTTP API serves `/chat`, `GET /books`, and
 `GET /books/{id}/cover`; catalog listing is also available through the CLI.
+The frontend loads public catalog metadata directly for a per-chat book selector;
+empty selection searches the whole library, while explicit IDs restrict retrieval.
 
 `list_available_books` returns a validated public object in the existing
 `tool-output-available` event:
@@ -396,7 +419,7 @@ then selects the five closest chunks across the resolved books. A book need
 not contribute a chunk to that global top five. Each source retains its own
 book ID, title, chapter, and chunk index. The model cannot widen the scope by
 supplying another book ID. With attachments, the caller chooses the books;
-without attachments, all books in the catalog snapshot are eligible.
+without attachments, all books available when retrieval runs are eligible.
 Multiple attachments are supported per request.
 Answers are limited to the retrieved context.
 
@@ -407,13 +430,15 @@ Each request allows at most three model calls and two tool calls. Model calls
 have a 30-second timeout with automatic retries disabled. These limits apply
 to the agent; embedding and reranking calls retain their provider defaults.
 
-The API has no authentication, conversation history, or session persistence.
+The API has no authentication or server-side conversation/session persistence.
 FastAPI's `/docs` remains available for inspecting the chat request schema.
 
 ### Streaming chat
 
-`POST /chat` accepts a `{message, book_ids?}` body and streams an independent
-response using the same agent, tools, attachment scope, and limits. It disables
+`POST /chat` accepts `{messages, book_ids?}` and streams the next response using
+the same agent, tools, attachment scope, and limits. It also retains the legacy
+`{message, book_ids?}` single-question body; supply exactly one of the two fields.
+It disables
 structured model output so answer tokens can stream directly as plain text.
 It uses `agent.astream_events(version="v2")` and FastAPI `StreamingResponse`, with
 no additional dependencies or answer buffering.
@@ -423,6 +448,40 @@ curl -N http://127.0.0.1:8000/chat \
   -H 'Content-Type: application/json' \
   -d '{"message": "What is the full name of Church, the cat?", "book_ids": [1]}'
 ```
+
+For a follow-up, send ordered messages ending with the new user question:
+
+```json
+{
+  "messages": [
+    {"role": "user", "content": "Who is Louis Creed?"},
+    {"role": "assistant", "content": "Louis Creed is a doctor."},
+    {"role": "user", "content": "Where does he move?"}
+  ],
+  "book_ids": [18]
+}
+```
+
+Assistant messages may include `tool_calls: [{id, name, args}]`; each call must
+have a following `{role: "tool", tool_call_id, content: {...}}` result before the
+conversation continues. The backend validates known tools, arguments, results,
+unique call IDs, and pairing before execution. Client system/developer messages
+are not accepted. Historical calls are context and are not executed again.
+
+`agent/history.py` keeps a contiguous suffix of whole user turns within a
+6,000 **estimated** token history budget, counting text, calls, and tool results.
+The current question and server system prompt are always kept separately; this
+budget does not cap new retrieval output or the full model context. If the most
+recent historical turn is too large, all prior history is omitted. There is no
+automatic summarization, partial-turn trimming, or server-side conversation store.
+Incoming history is bounded to 1,000 message entries and 1,000,000 serialized
+characters; assistant text entries are limited to 100,000 characters, and user
+messages retain the 4,000-character limit. Invalid histories return HTTP 422.
+
+The model uses history to resolve references, but each new book-content question
+still retrieves fresh evidence. Current `book_ids` remain authoritative even if
+historical messages mention other books. Standalone CLI and evaluation calls
+remain independent questions.
 
 The SSE wire format follows the
 [AI SDK UI message stream protocol](https://ai-sdk.dev/docs/ai-sdk-ui/stream-protocol),
@@ -454,10 +513,14 @@ iterator and cancel async graph execution; an already-running synchronous
 retrieval/provider call may finish in its worker thread.
 
 The frontend uses AI SDK transport to consume this protocol. Its server-side
-proxy sends `{message, book_ids}` with configured test attachments, and retains
+proxy sends `{messages, book_ids}` using the current question's selection, and retains
 custom `data-source` parts without a source panel. It requires `finish` before
-treating a response as complete. The caller owns chat state; no model history,
-persistence, or authentication is added here.
+treating a response as complete. Completed tool parts become matched call/result
+messages; duplicate source events, pending calls, and UI metadata are omitted.
+Unanswered historical questions are omitted; interrupted text and completed tool
+results can remain as context. Full UI history stays visible even when Python
+windows model input. The caller owns chat state; no server persistence or
+authentication is added here.
 
 ## Project layout
 

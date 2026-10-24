@@ -115,9 +115,10 @@ uv run ruff format --check .
   AI Elements in `web/`, with Node 24 and pnpm 10.33.2
 
 The frontend consumes Python `/chat` through a same-origin Next.js SSE proxy
-with server-configured test book IDs. Chats are in memory and questions remain
-independent. Book selection, source panels, model conversation history,
-persistence, and LangChain.js remain deferred. Python owns agent and retrieval behavior. There is no AWS deployment, graph database,
+with per-chat book selection. Chats are in memory and send conversational history,
+including completed tool calls/results. Python applies a 6,000 estimated-token
+sliding window of complete turns without summaries. Source panels, server-side
+conversation persistence, and LangChain.js remain deferred. Python owns agent and retrieval behavior. There is no AWS deployment, graph database,
 advanced agent workflow, or production ingestion service yet.
 
 ## Project structure and conventions
@@ -227,8 +228,19 @@ reusable application code from the installed package.
   `rag_library.main:app`.
 
 The API accepts omitted or empty `book_ids` and validates any supplied attachments
-before model execution. `AgentContext` snapshots the attached books, or the entire
-catalog when none are attached; the model supplies only the content question.
+before model execution. `AgentContext` holds only normalized `attached_book_ids`
+and retrieval settings, never book metadata or `book_refs`. Empty attached IDs
+mean all books: the answer tool resolves the current catalog when retrieval runs.
+The model supplies only the content question.
+`POST /chat` accepts ordered `messages` (user/assistant/tool), ending with the new
+user question, or legacy `message`, never both. Validate tool names, arguments,
+result shapes, unique IDs, and call/result pairing before execution; client system
+messages are forbidden. Convert into LangChain messages and window only historical
+turns through `agent/history.py`; always retain the current question and server
+instructions. The history budget counts tool data as well as prose and is not a
+full model-context cap. Current attachments remain authoritative; historical tools
+are not replayed and new content questions retrieve fresh evidence. CLI/evaluation
+questions remain independent.
 Retrieval pools top-k across these resolved IDs, retaining each source's book ID.
 An empty library returns an explicit no-books tool result without retrieval.
 The agent's `list_available_books` tool always queries the entire catalog,
@@ -245,6 +257,7 @@ IDs, chunks, or embeddings, requiring only database settings. Run it to migrate
 existing databases before using the updated catalog. The caller owns attachment state.
 Eval cases use nonempty `book_refs` lists of exact EPUB `content_sha256` values,
 resolved to current numeric IDs at generation time and saved with answers.
+Evaluation generation saves resolved book metadata separately from agent context.
 Direct `ask`/`search` commands can omit `--book-id` only for a singleton catalog.
 Search accepts repeated `--book-id` arguments and `--method vector|bm25|hybrid`
 (default vector). BM25 builds a fresh index over the attached books together, using

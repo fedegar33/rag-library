@@ -85,7 +85,7 @@ test("SDK owns fragmented text, dynamic tool state, and source parts", async () 
   );
 });
 
-test("SDK publishes tokens before completion and transport sends only the latest question", async () => {
+test("SDK publishes tokens immediately and drops unanswered historical questions", async () => {
   let body: unknown;
   let controller!: ReadableStreamDefaultController<Uint8Array>;
   const chat = createLibraryChat("not-sent", async (_url, options) => {
@@ -110,7 +110,7 @@ test("SDK publishes tokens before completion and transport sends only the latest
   await tick();
   assert.equal(chat.status, "streaming");
   assert.equal(messageText(chat.lastMessage!), "First token");
-  assert.deepEqual(body, { message: "Only this question" });
+  assert.deepEqual(body, { messages: [{ role: "user", content: "Only this question" }], book_ids: [] });
   controller.enqueue(
     encode([{ type: "text-end", id: "text-1" }, finish, "[DONE]"]),
   );
@@ -180,7 +180,12 @@ test("in-stream failure preserves partial output; explicit resend preserves the 
   const chat = createLibraryChat("retry", async (url, options) => {
     calls++;
     assert.deepEqual(JSON.parse(options!.body as string), {
-      message: "Question",
+      messages: calls === 1 ? [{ role: "user", content: "Question" }] : [
+        { role: "user", content: "Question" },
+        { role: "assistant", content: "Keep me" },
+        { role: "user", content: "Question" },
+      ],
+      book_ids: [],
     });
     return eventFetch(
       calls === 1
@@ -281,7 +286,7 @@ test("SDK stop aborts upstream, preserves partial reply, and isolates another co
   assert.equal(messageText(chat.lastMessage!), "Partial");
   assert.match(
     chat.lastMessage!.metadata!.interruption!,
-    /switched conversations/,
+    /Response stopped/,
   );
   const other = createLibraryChat(
     "new",
@@ -296,4 +301,35 @@ test("SDK stop aborts upstream, preserves partial reply, and isolates another co
   assert.equal(other.status, "ready");
   assert.equal(messageText(chat.lastMessage!), "Partial");
   assert.equal(messageText(other.lastMessage!), "Other answer");
+});
+
+
+test("each question and explicit retry keep their own book scope", async () => {
+  const requests: unknown[] = [];
+  const chat = createLibraryChat("scoped", async (url, options) => {
+    requests.push(JSON.parse(options!.body as string));
+    return eventFetch([start, delta("Answer"), { type: "text-end", id: "text-1" }, finish])(url, options);
+  });
+  const books = [{ id: 17, title: "Original book" }];
+  await chat.sendMessage({ text: "First", metadata: { books: books.map((book) => ({ ...book })) } });
+  const original = chat.messages[0];
+  books[0].id = 99;
+  await chat.sendMessage({ text: "Second", metadata: { books: [] } });
+  await chat.sendMessage({ text: "First", metadata: original.metadata });
+  assert.deepEqual(requests, [
+    { messages: [{ role: "user", content: "First" }], book_ids: [17] },
+    { messages: [
+      { role: "user", content: "First" },
+      { role: "assistant", content: "Answer" },
+      { role: "user", content: "Second" },
+    ], book_ids: [] },
+    { messages: [
+      { role: "user", content: "First" },
+      { role: "assistant", content: "Answer" },
+      { role: "user", content: "Second" },
+      { role: "assistant", content: "Answer" },
+      { role: "user", content: "First" },
+    ], book_ids: [17] },
+  ]);
+  assert.equal(original.metadata?.books?.[0].title, "Original book");
 });

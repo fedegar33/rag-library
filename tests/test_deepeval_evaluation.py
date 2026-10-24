@@ -35,7 +35,7 @@ class DeepEvalTests(unittest.TestCase):
             {"book_title": "Libro", "chapter_number": 2, "chunk_index": 3, "text": "B"},
         ]
         calls = [
-            ToolCallRecord("list_books", {}, {"books": []}),
+            ToolCallRecord("list_available_books", {}, {"books": []}),
             ToolCallRecord(
                 "answer_book_question", {}, {"answer": "Inner", "sources": sources}
             ),

@@ -25,11 +25,14 @@ def answer_book_question(
     Book scope is supplied by the application. Supply only the question; do not
     choose book IDs, infer attachments, or add guessed answer terms.
     """
-    if not runtime.context.books:
+    book_ids = list(runtime.context.attached_book_ids)
+    if not book_ids:
+        book_ids = [book["id"] for book in catalog.list_books()]
+    if not book_ids:
         return {"sources": [], "message": "No books are available in the library."}
     documents = BookRetriever(
         k=5,
-        book_ids=runtime.context.book_ids,
+        book_ids=book_ids,
         method=runtime.context.retrieval_method,
         candidate_limit=runtime.context.candidate_limit,
         rerank=runtime.context.rerank,

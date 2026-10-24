@@ -260,7 +260,7 @@ class CardContractTests(unittest.TestCase):
             return [
                 frame
                 async for frame in stream_chat(
-                    graph, "Which books?", AgentContext((book(),))
+                    graph, "Which books?", AgentContext((7,))
                 )
             ]
 

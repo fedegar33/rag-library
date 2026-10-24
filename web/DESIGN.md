@@ -13,7 +13,7 @@ interactive accents are pale blue (#b9cfe5). Avoid gold and decorative accents.
 
 Use the system sans-serif stack for controls, sidebar titles, user messages, and
 status labels. Use Georgia for assistant replies and the welcome heading.
-Assistant replies are 18px (17px on mobile) with generous line height; controls
+Assistant replies are 16px on desktop and mobile with generous line height; controls
 are 13–15px. Truncate long sidebar titles and allow message text to wrap.
 
 ## Layout and surfaces
@@ -28,7 +28,7 @@ The sidebar has a plain wordmark, a discreet “New chat” button, and a single
 “Recents” list. Avoid per-conversation icons, book counts, decorative badges,
 fake profile controls, and suggestion cards. The welcome state is a short serif
 heading and a single supporting line. The header shows only the conversation
-title and sidebar toggle. Show the attached book count once, beside the composer.
+title and sidebar toggle. Show the active book scope beside the composer with removable chips.
 
 Use subtle surface differences and soft corners. Assistant replies sit directly
 on the page; user messages use a muted blue bubble. The composer has a faint
@@ -42,23 +42,30 @@ and a skip link to the composer. Enter sends; Shift+Enter inserts a newline;
 composition with an IME must not accidentally send. Empty messages cannot send.
 Preserve each chat's draft when switching conversations.
 
-The live testing UI uses the server-configured book IDs for every conversation;
-the composer shows the attachment count until catalog selection is implemented. There is no
-attachment picker, upload flow, or citation UI. Source events remain attached to SDK `UIMessage.parts`
-on the assistant message in memory, preserving provenance for a future source view.
+The Books button opens a modal right panel, full screen below 700px. List
+existing books alphabetically with small covers, titles, authors, and checkboxes;
+no search or upload in this version. Keep the footer visible while the list
+scrolls. Changes are provisional until Apply; dismissal discards them. No
+selection means Whole library; selecting books restricts retrieval to those books.
+Show at most two removable title chips and +N. Removing the last restores Whole
+library. Disable all scope controls while generating. Each new chat starts with
+the whole library. Selection and drafts survive chat switches in memory only.
+Each user message shows its sent scope; retry uses that original selection.
+Loading and catalog errors are explicit; failed loading cannot clear a selection.
+Source events remain in SDK message parts for a future citation view.
 
 Stream answer text progressively and show a quiet text status while thinking or
 searching. Only one request runs at a time. Switching to another chat cancels the
 active stream and retains its partial answer with an interrupted label. Keep
 partial output on failure and offer manual Retry only on the latest failed reply;
-retry resends the same question as a new turn and retains the original partial
+retry resends the same question and original book selection as a new turn and retains the original partial
 answer. Never
-retry automatically. No Stop button or background generation in this milestone.
+retry automatically. The send button becomes Stop during generation; no background generation.
 
-Make it clear that each question is independent: the message history is for
-display only and is not sent to Python. Chats reset on refresh; no browser storage.
-Show a useful setup error when test books are unconfigured; never imply a sample
-reply is a live answer. Model execution and credentials remain in Python.
+Make it clear that recent conversation is used as context, while chats reset on
+refresh. Python bounds model history by whole turns; the full transcript stays
+visible. There are no automatic summaries, server persistence, or browser storage.
+Show recoverable catalog errors; never imply a sample reply is a live answer. Model execution and credentials remain in Python.
 
 Keep app-specific UI in `src/components/`, primitives in `components/ui/`, and
 app-specific chat composition in `components/`. Extend the existing tokens and

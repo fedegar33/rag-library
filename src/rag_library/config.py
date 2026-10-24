@@ -2,7 +2,12 @@
 
 from functools import lru_cache
 
+from dotenv import load_dotenv
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# SDKs such as LangSmith read os.environ directly, outside Pydantic settings.
+# Keep exported variables authoritative, including explicit tracing opt-outs.
+load_dotenv(".env", override=False)
 
 
 class DatabaseSettings(BaseSettings):

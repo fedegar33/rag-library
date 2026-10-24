@@ -79,7 +79,7 @@ class ChatStreamTests(unittest.IsolatedAsyncioTestCase):
             async for frame in stream_chat(
                 graph,
                 "Church's name?",
-                AgentContext((book(),)),
+                AgentContext((7,)),
             )
         ]
         self.assertEqual(frames[-1], "data: [DONE]\n\n")
@@ -133,7 +133,7 @@ class ChatStreamTests(unittest.IsolatedAsyncioTestCase):
             async for frame in stream_chat(
                 build_agent(model, structured_output=False),
                 "Which books are available?",
-                AgentContext((book(),)),
+                AgentContext((7,)),
             )
         ]
         events = [decode(frame) for frame in frames[:-1]]
@@ -184,7 +184,7 @@ class ChatStreamTests(unittest.IsolatedAsyncioTestCase):
                     closed.set()
 
         async with aclosing(
-            stream_chat(GatedAgent(), "Hi", AgentContext((book(),)))
+            stream_chat(GatedAgent(), "Hi", AgentContext((7,)))
         ) as stream:
             self.assertEqual(decode(await anext(stream))["type"], "start")
             self.assertEqual(
@@ -208,7 +208,7 @@ class ChatStreamTests(unittest.IsolatedAsyncioTestCase):
                 async for frame in stream_chat(
                     FailedAgent(),
                     "Hi",
-                    AgentContext((book(),)),
+                    AgentContext((7,)),
                 )
             ]
         self.assertEqual([decode(f)["type"] for f in frames[:-1]], ["start", "error"])
@@ -239,7 +239,7 @@ class ChatStreamTests(unittest.IsolatedAsyncioTestCase):
                 async for f in stream_chat(
                     build_agent(model, structured_output=False),
                     "Where?",
-                    AgentContext((book(),)),
+                    AgentContext((7,)),
                 )
             ]
         kinds = [decode(f)["type"] for f in frames[:-1]]
@@ -258,7 +258,7 @@ class ChatStreamTests(unittest.IsolatedAsyncioTestCase):
                 finally:
                     closed.set()
 
-        stream = stream_chat(WaitingAgent(), "Hi", AgentContext((book(),)))
+        stream = stream_chat(WaitingAgent(), "Hi", AgentContext((7,)))
         await anext(stream)
         task = asyncio.create_task(anext(stream))
         await asyncio.wait_for(waiting.wait(), 1)
@@ -295,9 +295,7 @@ class ChatStreamTests(unittest.IsolatedAsyncioTestCase):
         with self.assertLogs("rag_library.api.streaming", level="ERROR"):
             frames = [
                 f
-                async for f in stream_chat(
-                    NestedAgent(), "Where?", AgentContext((book(),))
-                )
+                async for f in stream_chat(NestedAgent(), "Where?", AgentContext((7,)))
             ]
         events = [decode(f) for f in frames[:-1]]
         self.assertEqual(
@@ -329,7 +327,7 @@ class ChatStreamTests(unittest.IsolatedAsyncioTestCase):
                 async for f in stream_chat(
                     build_agent(model, structured_output=False),
                     "Unknown?",
-                    AgentContext((book(),)),
+                    AgentContext((7,)),
                 )
             ]
         events = [decode(f) for f in frames[:-1]]

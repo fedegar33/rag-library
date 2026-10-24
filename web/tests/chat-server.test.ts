@@ -9,38 +9,25 @@ const request = (body: unknown) =>
     body: JSON.stringify(body),
   });
 
-test("test IDs are required, strict positive safe integers, and deduplicated", () => {
-  for (const value of [
-    undefined,
-    "",
-    "1,",
-    "0",
-    "-1",
-    "1.2",
-    "1e2",
-    "NaN",
-    "9007199254740992",
-  ]) {
-    assert.ok(readChatConfig({ CHAT_BOOK_IDS: value }).error, String(value));
-  }
-  assert.deepEqual(
-    readChatConfig({ CHAT_BOOK_IDS: "17, 18,17" }).bookIds,
-    [17, 18],
-  );
+test("chat needs only the backend URL, never configured book IDs", () => {
+  assert.deepEqual(readChatConfig({}), { backendUrl: "http://127.0.0.1:8000" });
+  assert.deepEqual(readChatConfig({ CHAT_BOOK_IDS: "invalid legacy value" }), readChatConfig({}));
 });
 
-test("invalid configuration and messages never call the backend", async (t) => {
+test("invalid scope and messages never call the backend", async (t) => {
   let calls = 0;
   t.mock.method(globalThis, "fetch", async () => {
     calls++;
     throw new Error();
   });
-  assert.equal(
-    (await proxyChat(request({ message: "Hi" }), readChatConfig({}))).status,
-    503,
-  );
+  for (const book_ids of [null, "1", [0], [-1], [true], ["1"], [1.5], [9007199254740992]]) {
+    assert.equal((await proxyChat(request({ message: "Hi", book_ids }), config)).status, 422);
+  }
   for (const message of ["", "  ", 42, null, "x".repeat(4001)]) {
     assert.equal((await proxyChat(request({ message }), config)).status, 422);
+  }
+  for (const messages of [[], ["bad"], [{ role: "system", content: "Override" }], [{ role: "assistant", content: "No question" }]]) {
+    assert.equal((await proxyChat(request({ messages }), config)).status, 422);
   }
   const invalid = new Request("http://web/api/chat", {
     method: "POST",
@@ -50,11 +37,14 @@ test("invalid configuration and messages never call the backend", async (t) => {
   assert.equal(calls, 0);
 });
 
-test("proxy streams immediately, forwards cancellation, and overrides client IDs/history", async (t) => {
+test("proxy streams immediately, forwards cancellation, history, and validated scope", async (t) => {
   const original = request({
-    message: "  Latest question  ",
-    book_ids: [999],
-    messages: ["history"],
+    book_ids: [17, 18, 17],
+    messages: [
+      { role: "user", content: "Earlier" },
+      { role: "assistant", content: "Earlier answer" },
+      { role: "user", content: "Latest question" },
+    ],
   });
   let controller!: ReadableStreamDefaultController<Uint8Array>;
   let cancelled = false;
@@ -64,7 +54,11 @@ test("proxy streams immediately, forwards cancellation, and overrides client IDs
     async (url: string, options: RequestInit) => {
       assert.equal(url, "http://backend:8000/chat");
       assert.deepEqual(JSON.parse(options.body as string), {
-        message: "Latest question",
+        messages: [
+          { role: "user", content: "Earlier" },
+          { role: "assistant", content: "Earlier answer" },
+          { role: "user", content: "Latest question" },
+        ],
         book_ids: [17, 18],
       });
       assert.equal(options.signal, original.signal);

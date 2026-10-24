@@ -9,25 +9,19 @@ from rag_library.rag.search import RetrievalMethod
 
 @dataclass(frozen=True)
 class AgentContext:
-    """A validated retrieval snapshot: attachments, or the entire catalog."""
+    """Caller-selected IDs and retrieval options; no attachments means all books."""
 
-    books: tuple[catalog.CatalogBook, ...]
+    attached_book_ids: tuple[int, ...] = ()
     retrieval_method: RetrievalMethod = "hybrid"
     candidate_limit: int | None = None
     rerank: bool = True
 
     def __post_init__(self):
-        if self.books:
-            catalog.normalize_book_ids(self.book_ids)
+        ids = tuple(self.attached_book_ids)
+        if ids:
+            ids = tuple(catalog.normalize_book_ids(ids))
+        object.__setattr__(self, "attached_book_ids", ids)
         validate_retrieval_options(self.retrieval_method, self.candidate_limit)
-
-    @property
-    def book_ids(self) -> list[int]:
-        return [book["id"] for book in self.books]
-
-    @property
-    def book_refs(self) -> list[str]:
-        return [book["content_sha256"] for book in self.books]
 
 
 def validate_retrieval_options(method: str, candidate_limit: int | None) -> None:
@@ -48,13 +42,13 @@ def create_agent_context(
     candidate_limit: int | None = None,
     rerank: bool = True,
 ) -> AgentContext:
-    """Resolve attachments, or snapshot all available books when none are supplied."""
-    validate_retrieval_options(retrieval_method, candidate_limit)
-    return AgentContext(
-        books=tuple(
-            catalog.get_books_by_ids(book_ids) if book_ids else catalog.list_books()
-        ),
+    """Validate supplied attachments before model execution; keep empty scope empty."""
+    context = AgentContext(
+        attached_book_ids=tuple(book_ids),
         retrieval_method=retrieval_method,
         candidate_limit=candidate_limit,
         rerank=rerank,
     )
+    if context.attached_book_ids:
+        catalog.get_books_by_ids(context.attached_book_ids)
+    return context

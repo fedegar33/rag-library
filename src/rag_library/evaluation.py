@@ -127,14 +127,15 @@ def run_evaluation(
             },
         )
         try:
+            attached_books = get_books_by_refs(case["book_refs"])
             context = AgentContext(
-                books=tuple(get_books_by_refs(case["book_refs"])),
+                attached_book_ids=tuple(book["id"] for book in attached_books),
                 retrieval_method=retrieval_method,
                 candidate_limit=candidate_limit,
                 rerank=rerank,
             )
-            row["book_ids"] = context.book_ids
-            row["attached_books"] = list(context.books)
+            row["book_ids"] = list(context.attached_book_ids)
+            row["attached_books"] = attached_books
             response = run_agent(agent, case["question"], context=context)
             row["actual_answer"] = response.answer
             row["tool_calls"] = [asdict(call) for call in response.tool_calls]

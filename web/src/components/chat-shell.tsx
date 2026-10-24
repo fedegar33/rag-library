@@ -63,14 +63,8 @@ function ChatSidebar({
   );
 }
 
-export function ChatShell({
-  bookIds,
-  configurationError,
-}: {
-  bookIds: number[];
-  configurationError?: string;
-}) {
-  const [chats, setChats] = useState<Chat[]>(() => [emptyChat("new", bookIds)]);
+export function ChatShell() {
+  const [chats, setChats] = useState<Chat[]>(() => [emptyChat("new")]);
   const [activeId, setActiveId] = useState("new");
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const mobileSidebar = useRef<HTMLDialogElement>(null);
@@ -100,10 +94,13 @@ export function ChatShell({
 
   function newChat() {
     const empty = chats.find((item) => item.client.messages.length === 0);
-    if (empty) selectChat(empty.id);
+    if (empty) {
+      setChats((current) => current.map((item) => item.id === empty.id ? { ...item, books: [] } : item));
+      selectChat(empty.id);
+    }
     else {
       const id = crypto.randomUUID();
-      setChats((current) => [emptyChat(id, bookIds), ...current]);
+      setChats((current) => [emptyChat(id), ...current]);
       selectChat(id);
     }
     composer.current?.focus();
@@ -121,9 +118,7 @@ export function ChatShell({
     if (
       !text ||
       text.length > 4000 ||
-      busy ||
-      configurationError ||
-      !bookIds.length
+      busy
     )
       return;
     setChats((current) =>
@@ -137,14 +132,14 @@ export function ChatShell({
           : item,
       ),
     );
-    void sendMessage({ text });
+    void sendMessage({ text, metadata: { books: chat.books.map((book) => ({ ...book })) } });
   }
 
   function retry() {
-    if (busy || configurationError || !latestQuestion) return;
+    if (busy || !latestQuestion) return;
     // An explicit resend keeps the original interrupted answer in the SDK
     // history. regenerate() would replace it and lose the partial output.
-    void sendMessage({ text: messageText(latestQuestion) });
+    void sendMessage({ text: messageText(latestQuestion), metadata: latestQuestion.metadata });
   }
 
   const sidebarProps = {
@@ -220,7 +215,7 @@ export function ChatShell({
                       <ChatMessage
                         message={message}
                         active={busy && message.id === lastMessage?.id}
-                        retryDisabled={busy || !!configurationError}
+                        retryDisabled={busy}
                         onRetry={message.id === lastMessage?.id && latestQuestion ? retry : undefined}
                       />
                     </MessageScrollerItem>
@@ -243,10 +238,15 @@ export function ChatShell({
           </MessageScrollerProvider>
         )}
         <ChatComposer
+          key={`composer-${chat.id}`}
           draft={chat.draft}
-          bookCount={chat.books.length}
+          books={chat.books}
           busy={busy}
-          configurationError={configurationError}
+          onBooksChange={(books) => {
+            if (busy) return;
+            setChats((current) => current.map((item) => item.id === activeId ? { ...item, books } : item));
+          }}
+          onStop={() => void stop()}
           inputRef={composer}
           onDraftChange={setDraft}
           onSubmit={send}

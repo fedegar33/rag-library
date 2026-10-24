@@ -7,9 +7,10 @@ from contextlib import aclosing
 from typing import Any, Literal, TypedDict
 from uuid import uuid4
 
-from langchain_core.messages import ToolMessage
+from langchain_core.messages import BaseMessage, HumanMessage, ToolMessage
 
 from rag_library.agent.context import AgentContext
+from rag_library.agent.history import window_messages
 
 logger = logging.getLogger(__name__)
 
@@ -69,15 +70,18 @@ def encode_event(event: ChatEvent) -> str:
 
 
 async def stream_chat(
-    agent: Any, message: str, context: AgentContext
+    agent: Any, messages: list[BaseMessage] | str, context: AgentContext
 ) -> AsyncIterator[str]:
     """Yield immediately; never accumulate the answer or wait for graph completion."""
     yield encode_event({"type": "start", "messageId": str(uuid4())})
     tool_runs: set[str] = set()
     text_runs: set[str] = set()
     try:
+        conversation = (
+            [HumanMessage(content=messages)] if isinstance(messages, str) else messages
+        )
         events = agent.astream_events(
-            {"messages": [{"role": "user", "content": message}]},
+            {"messages": window_messages(conversation)},
             context=context,
             version="v2",
         )

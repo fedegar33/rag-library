@@ -23,7 +23,7 @@ web:
 check: check-api check-web
 
 check-api:
-	uv run python -m unittest discover -s tests
+	LANGSMITH_TRACING=false LANGCHAIN_TRACING_V2=false uv run python -m unittest discover -s tests
 	uv run ruff check .
 	uv run ruff format --check .
 

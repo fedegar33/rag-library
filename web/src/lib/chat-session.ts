@@ -18,7 +18,7 @@ export function createLibraryChat(
         metadata: {
           ...message.metadata,
           interruption: isAbort
-            ? "Response stopped when you switched conversations."
+            ? "Response stopped. You can retry this question."
             : chat.error?.message ||
               "The connection was interrupted. Please try again.",
         },

@@ -13,17 +13,14 @@ cp web/.env.example web/.env.local
 uv run python -m rag_library.cli.books
 ```
 
-Set `CHAT_BOOK_IDS` in `web/.env.local` to current catalog IDs, for example
-`CHAT_BOOK_IDS=17,18` if those IDs exist in your catalog. All conversations share
-these test books. Do not use EPUB hashes or the sample IDs without checking your
-catalog. `BACKEND_API_URL` defaults to `http://127.0.0.1:8000`. Restart the web
-server after changing configuration.
+`BACKEND_API_URL` defaults to `http://127.0.0.1:8000`. Restart the web server
+when changing this configuration. `CHAT_BOOK_IDS` is no longer used: each chat
+starts with the whole library and users choose books in the composer.
 
 Run `make api` and `make web` in separate terminals. Open http://localhost:3000.
 The API needs the root `.env` database and model configuration; default hybrid
 reranking also requires Cohere. Keep credentials in Python's root `.env`, never
-in `NEXT_PUBLIC_*` variables. The web app shows a setup error and disables sending
-when test book IDs are missing or invalid.
+in `NEXT_PUBLIC_*` variables. The picker reports catalog loading errors and offers a manual retry.
 
 ## Chat behavior
 
@@ -32,18 +29,30 @@ when test book IDs are missing or invalid.
 - Answer text streams as it arrives. A simple status indicates retrieval activity.
 - Switching to a different chat cancels the request and preserves its partial reply.
 - Failures retain partial output with an interrupted label. Retry resends the
-  latest failed question, retaining the original reply. Requests never retry automatically.
-- **Every question is independent.** Previous messages are displayed but are not
-  sent to the agent. There is no session memory, background generation, or Stop button.
-- The composer shows a read-only attachment count. Book selection, uploads, source
-  panels, and conversation persistence remain deferred. Source events are retained
-  in assistant message state for a future provenance view.
+  latest failed question with its original book selection, retaining the original reply. Requests never retry automatically.
+- Recent conversation, including completed tool calls and results, is sent to
+  the agent. Python uses a 6,000 estimated-token sliding window of complete turns;
+  the full transcript stays visible. There are no automatic summaries or server
+  persistence. Stop interrupts the current response; no background generation.
+- Books opens a right panel (full screen on mobile), with an alphabetical catalog,
+  checkboxes, and an Apply button. Closing without applying discards changes.
+- The composer shows up to two removable book chips and +N; no chips means Whole
+  library. Selection is per chat, retained across switches, and locked during a response.
+- Each question records and displays its sent scope. Uploads, source panels, and
+  conversation persistence remain deferred. Source events stay in message state.
 
 ## Streaming contract
 
-The browser uses `useChat` with a `DefaultChatTransport` subclass to POST `{ message }` to
-`/api/chat`. The Next.js route validates the message and injects the configured
-book IDs before forwarding `{ message, book_ids }` to Python's `POST /chat`.
+The browser uses `useChat` with a `DefaultChatTransport` subclass to POST
+`{ messages, book_ids }` to `/api/chat`. `chat-history.ts` converts text and completed
+dynamic tools into user/assistant/tool messages. Incomplete calls, duplicate source
+events, display metadata, and unanswered past questions are excluded; original UI
+messages are not modified. Tool call IDs link each call with its result. The Next.js
+route validates the envelope and positive integer IDs, then Python validates the
+full history and selects its sliding window. The latest question's selection
+controls retrieval regardless of historical book references. Legacy single-message
+requests remain accepted. Requests are bounded to 1,000 history entries and
+1,000,000 serialized characters in Python, independently of the model token budget.
 It pipes the upstream body without accumulating the answer and forwards request
 cancellation. Browser requests need no backend CORS configuration.
 
@@ -52,7 +61,7 @@ tool activity, source data, `finish`, and `error`. A closed stream or `[DONE]`
 without `finish` is interrupted, and an empty completed answer is treated as an
 error. HTTP 422/503 and connection failures produce useful errors before streaming.
 Each conversation owns an SDK `Chat` instance, and `useChat` subscribes to the
-active instance. The shell retains only sidebar metadata and drafts. Text, tool
+active instance. The shell retains sidebar metadata, book selections, and drafts. Text, tool
 states, and custom `data-source` parts stay in SDK `UIMessage.parts`; no custom
 message accumulator or request controller is maintained. Switching calls the
 hook's `stop()`. Retry explicitly resends the question as a new turn, keeping the
@@ -62,6 +71,9 @@ catalog result (including an empty catalog), because the
 SDK otherwise accepts an ordinary end of stream.
 
 The Next route is a transport proxy; it does not execute another agent.
+`GET /api/books` proxies Python `GET /books` for validated public catalog metadata,
+without model calls. Empty book IDs mean whole-library retrieval; explicit IDs
+restrict retrieval, and Python rejects missing books without widening the scope.
 
 See [DESIGN.md](DESIGN.md) for visual and interaction rules.
 

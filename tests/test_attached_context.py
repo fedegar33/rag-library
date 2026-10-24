@@ -64,16 +64,46 @@ class AttachedContextTests(unittest.TestCase):
     ):
         retriever.return_value.invoke.return_value = []
         for ids in [(), []]:
+            catalog.reset_mock()
             context = create_agent_context(ids)
-            self.assertEqual(context.book_ids, [7, 8])
+            self.assertEqual(context.attached_book_ids, ())
+            catalog.assert_not_called()
             answer_book_question.func(
                 question="Where?", runtime=SimpleNamespace(context=context)
             )
-        self.assertEqual(create_agent_context().book_ids, [7, 8])
+        self.assertEqual(create_agent_context().attached_book_ids, ())
         self.assertEqual(
             [call.kwargs["book_ids"] for call in retriever.call_args_list],
             [[7, 8], [7, 8]],
         )
+
+    @patch("rag_library.catalog.list_books")
+    @patch("rag_library.agent.tools.BookRetriever")
+    def test_global_scope_resolves_current_catalog_at_retrieval_time(
+        self, retriever, catalog
+    ):
+        context = create_agent_context()
+        catalog.assert_not_called()
+        catalog.side_effect = [[book(7)], [book(8), book(9)]]
+        retriever.return_value.invoke.return_value = []
+        for _ in range(2):
+            answer_book_question.func(
+                question="Where?", runtime=SimpleNamespace(context=context)
+            )
+        self.assertEqual(context.attached_book_ids, ())
+        self.assertEqual(
+            [call.kwargs["book_ids"] for call in retriever.call_args_list],
+            [[7], [8, 9]],
+        )
+
+    def test_context_keeps_only_normalized_ids_and_rejects_invalid_ids(self):
+        ids = [8, 7, 8]
+        context = AgentContext(attached_book_ids=ids)
+        ids.append(9)
+        self.assertEqual(context.attached_book_ids, (8, 7))
+        for invalid in [(0,), (-1,), (True,), ("7",)]:
+            with self.subTest(ids=invalid), self.assertRaises(ValueError):
+                AgentContext(attached_book_ids=invalid)
 
     @patch("rag_library.catalog.list_books", return_value=[])
     @patch("rag_library.agent.tools.BookRetriever")
@@ -147,7 +177,7 @@ class AttachedContextTests(unittest.TestCase):
             )
         agent = build_agent(ScriptedModel(responses=responses))
         for book_id in [7, 8]:
-            result = run_agent(agent, "Where?", context=AgentContext((book(book_id),)))
+            result = run_agent(agent, "Where?", context=AgentContext((book_id,)))
             self.assertEqual(result.answer, "Evidence")
             self.assertEqual(result.tool_calls[0].arguments, {"question": "Where?"})
         self.assertEqual(
@@ -192,7 +222,7 @@ class AttachedContextTests(unittest.TestCase):
             )
         )
         result = run_agent(
-            agent, "Where?", context=AgentContext((book(),), candidate_limit=30)
+            agent, "Where?", context=AgentContext((7,), candidate_limit=30)
         )
         search.assert_called_once_with(
             "Where?", limit=5, book_ids=[7], candidate_limit=30, rerank=True
@@ -208,19 +238,21 @@ class AttachedContextTests(unittest.TestCase):
         self.assertIsNone(source["similarity"])
         chat.assert_not_called()
 
+    @patch("rag_library.catalog.list_books")
     @patch("rag_library.agent.tools.BookRetriever")
-    def test_agent_can_explicitly_use_vector_for_comparison(self, ask):
+    def test_agent_can_explicitly_use_vector_for_comparison(self, ask, catalog):
         ask.return_value.invoke.return_value = []
         answer_book_question.func(
             question="Where?",
             runtime=SimpleNamespace(
-                context=AgentContext((book(),), retrieval_method="vector")
+                context=AgentContext((7,), retrieval_method="vector")
             ),
         )
         ask.assert_called_once_with(
             k=5, book_ids=[7], method="vector", candidate_limit=None, rerank=True
         )
         ask.return_value.invoke.assert_called_once_with("Where?")
+        catalog.assert_not_called()
 
     def test_invalid_retrieval_configuration_rejected_before_agent_execution(self):
         for method, depth in [
@@ -233,14 +265,14 @@ class AttachedContextTests(unittest.TestCase):
                 self.subTest(method=method, depth=depth),
                 self.assertRaises(ValueError),
             ):
-                AgentContext((book(),), retrieval_method=method, candidate_limit=depth)
+                AgentContext((7,), retrieval_method=method, candidate_limit=depth)
 
     @patch("rag_library.rag.retriever.hybrid_search", return_value=[])
     def test_agent_can_disable_reranking_through_answering(self, search):
         answer_book_question.func(
             question="Where?",
             runtime=SimpleNamespace(
-                context=AgentContext((book(),), candidate_limit=100, rerank=False)
+                context=AgentContext((7,), candidate_limit=100, rerank=False)
             ),
         )
         search.assert_called_once_with(

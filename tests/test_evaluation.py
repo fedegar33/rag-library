@@ -53,7 +53,7 @@ class EvaluationTests(unittest.TestCase):
         ]
 
         def answer(agent, question, *, context):
-            self.assertEqual(context.book_ids, [7])
+            self.assertEqual(context.attached_book_ids, (7,))
             self.assertIs(agent, get.return_value)
             completed = json.loads(self.output.read_text())
             self.assertEqual(len(completed), run.call_count - 1)
@@ -234,7 +234,7 @@ class EvaluationTests(unittest.TestCase):
         ]
         result = answer_book_question.func(
             question="¿Dónde viven los Creed?",
-            runtime=SimpleNamespace(context=AgentContext((self.book,))),
+            runtime=SimpleNamespace(context=AgentContext((self.book["id"],))),
         )
         search.assert_called_once_with(
             "¿Dónde viven los Creed?",

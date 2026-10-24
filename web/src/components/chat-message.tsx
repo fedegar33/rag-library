@@ -28,6 +28,11 @@ export function ChatMessage({
               <div className="message-text">{messageText(message)}</div>
             </BubbleContent>
           </Bubble>
+          <p className="question-scope" title={message.metadata?.books?.map((book) => book.title).join(" · ") || "Whole library"}>
+            {message.metadata?.books?.length
+              ? message.metadata.books.map((book) => book.title).join(" · ")
+              : "Whole library"}
+          </p>
         </MessageContent>
       </Message>
     );

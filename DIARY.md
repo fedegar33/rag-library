@@ -2,6 +2,7 @@
 
 ## 2026-10-23
 
+- **Conversational sliding window:** Preserved tool-call/result pairs while trimming whole historical turns by estimated tokens; offline graph tests verified follow-up context, no historical tool replay, and current attachment scope.
 - **Streaming presentation:** Tool completion does not finish an assistant turn; controlled SSE tests verified chronological narration, deferred catalog cards, and retained results after later interruptions.
 
 ## 2026-10-22
