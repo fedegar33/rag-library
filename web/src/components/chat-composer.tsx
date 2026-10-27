@@ -12,6 +12,7 @@ export function ChatComposer({
   onBooksChange,
   onStop,
   busy,
+  disabled = false,
   inputRef,
   onDraftChange,
   onSubmit,
@@ -21,6 +22,7 @@ export function ChatComposer({
   onBooksChange: (books: Book[]) => void;
   onStop: () => void;
   busy: boolean;
+  disabled?: boolean;
   inputRef: Ref<HTMLTextAreaElement>;
   onDraftChange: (value: string) => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
@@ -38,6 +40,7 @@ export function ChatComposer({
             maxLength={4000}
             aria-describedby="chat-limits"
             value={draft}
+            disabled={disabled}
             onChange={(event) => onDraftChange(event.target.value)}
             onKeyDown={(event) => {
               if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing && event.keyCode !== 229) {
@@ -47,7 +50,7 @@ export function ChatComposer({
             }}
           />
           <InputGroupAddon align="block-end" className="composer-toolbar">
-            <BookContext books={books} busy={busy} onChange={onBooksChange} />
+            <BookContext books={books} busy={busy || disabled} onChange={onBooksChange} />
             <div className="composer-actions">
               <span className="send-hint">Enter to send</span>
               <InputGroupButton
@@ -57,7 +60,7 @@ export function ChatComposer({
                 size="icon-sm"
                 className="send-button"
                 aria-label={busy ? "Stop response" : "Send message"}
-                disabled={!busy && !draft.trim()}
+                disabled={disabled || (!busy && !draft.trim())}
               >
                 {busy ? <Square size={16} aria-hidden="true" /> : <ArrowUp size={19} aria-hidden="true" />}
               </InputGroupButton>
@@ -65,7 +68,7 @@ export function ChatComposer({
           </InputGroupAddon>
         </InputGroup>
       </form>
-      <p className="demo-note" id="chat-limits">Recent conversation is kept in context. Chats reset on refresh.</p>
+      <p className="demo-note" id="chat-limits">Chats are saved automatically. Recent conversation is kept in context.</p>
     </div>
   );
 }

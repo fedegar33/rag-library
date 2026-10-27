@@ -70,10 +70,15 @@ def encode_event(event: ChatEvent) -> str:
 
 
 async def stream_chat(
-    agent: Any, messages: list[BaseMessage] | str, context: AgentContext
+    agent: Any,
+    messages: list[BaseMessage] | str,
+    context: AgentContext,
+    *,
+    config: dict | None = None,
+    message_id: str | None = None,
 ) -> AsyncIterator[str]:
     """Yield immediately; never accumulate the answer or wait for graph completion."""
-    yield encode_event({"type": "start", "messageId": str(uuid4())})
+    yield encode_event({"type": "start", "messageId": message_id or str(uuid4())})
     tool_runs: set[str] = set()
     text_runs: set[str] = set()
     try:
@@ -81,7 +86,8 @@ async def stream_chat(
             [HumanMessage(content=messages)] if isinstance(messages, str) else messages
         )
         events = agent.astream_events(
-            {"messages": window_messages(conversation)},
+            {"messages": conversation if config else window_messages(conversation)},
+            **({"config": config} if config else {}),
             context=context,
             version="v2",
         )

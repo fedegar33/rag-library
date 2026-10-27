@@ -14,17 +14,21 @@ export function messageText(message: LibraryMessage) {
 // Parsing and accumulation belong to the SDK. This guard enforces /chat's
 // completion contract, which the SDK otherwise treats as an ordinary EOF.
 export class LibraryChatTransport extends DefaultChatTransport<LibraryMessage> {
-  constructor(fetcher?: typeof globalThis.fetch) {
+  constructor(fetcher?: typeof globalThis.fetch, persistent = false) {
     super({
       api: "/api/chat",
       fetch: fetcher,
-      prepareSendMessagesRequest: ({ messages }) => {
+      prepareSendMessagesRequest: ({ id, messages }) => {
         const latestQuestion = messages.findLast(
           (message) => message.role === "user",
         );
         return {
           body: {
-            messages: conversationHistory(messages),
+            ...(persistent ? {
+              chat_id: id,
+              request_id: latestQuestion?.id,
+              message: latestQuestion ? messageText(latestQuestion) : "",
+            } : { messages: conversationHistory(messages) }),
             book_ids: latestQuestion?.metadata?.books?.map((book) => book.id) ?? [],
           },
         };

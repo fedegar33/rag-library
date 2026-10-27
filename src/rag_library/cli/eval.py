@@ -6,6 +6,8 @@ from pathlib import Path
 from time import perf_counter
 
 from rag_library.agent.context import validate_retrieval_options
+from rag_library.behavior_evaluation import run_behavior_evaluation
+from rag_library.deepeval_behavior import score_behavior_results
 from rag_library.deepeval_evaluation import score_results
 from rag_library.evaluation import EvaluationProgress, load_cases, run_evaluation
 
@@ -37,15 +39,16 @@ def main() -> int:
         choices=["all", "generate", "score"],
         default="all",
     )
-    parser.add_argument("--dataset", type=Path, default=Path("evals/basic.json"))
+    parser.add_argument("--suite", choices=["rag", "agent"], default="rag")
+    parser.add_argument("--dataset", type=Path)
     parser.add_argument(
         "--id",
         dest="case_ids",
         action="append",
         help="Run only this exact case ID (repeat to select several cases)",
     )
-    parser.add_argument("--output", type=Path, default=Path("evals/basic_result.json"))
-    parser.add_argument("--results-folder", type=Path, default=Path("evals/results"))
+    parser.add_argument("--output", type=Path)
+    parser.add_argument("--results-folder", type=Path)
     parser.add_argument("--max-concurrent", type=int, default=20)
     parser.add_argument(
         "--metrics",
@@ -71,6 +74,16 @@ def main() -> int:
         help="Hybrid candidates per method (default: 20; at least 5)",
     )
     args = parser.parse_args()
+    if args.suite == "agent":
+        args.dataset = args.dataset or Path("evals/agent_behavior.json")
+        args.output = args.output or Path("evals/results/agent-behavior/answers.json")
+        args.results_folder = args.results_folder or Path(
+            "evals/results/agent-behavior/scores"
+        )
+    else:
+        args.dataset = args.dataset or Path("evals/basic.json")
+        args.output = args.output or Path("evals/basic_result.json")
+        args.results_folder = args.results_folder or Path("evals/results")
     if args.max_concurrent < 1:
         parser.error("--max-concurrent must be greater than zero")
     if args.manual and args.stage not in ("all", "generate"):
@@ -79,6 +92,16 @@ def main() -> int:
         args.stage = "generate"
     if args.stage == "generate" and args.metrics is not None:
         parser.error("--metrics applies only to all or score; generate does not score")
+    if args.suite == "agent":
+        if any(
+            value is not None
+            for value in (args.method, args.candidate_limit, args.rerank, args.metrics)
+        ):
+            parser.error(
+                "Agent behavior uses fixed tool fixtures and its own metrics; "
+                "retrieval and --metrics overrides are not supported"
+            )
+        return _run_behavior(args, parser)
     if args.stage == "score" and (
         args.method is not None
         or args.candidate_limit is not None
@@ -145,6 +168,32 @@ def main() -> int:
     scored = score_results(
         rows, args.results_folder, args.max_concurrent, metrics=args.metrics or "core"
     )
+    for case_id, error in scored.errors.items():
+        print(f"{case_id}: {error}", file=sys.stderr)
+    return 0 if scored.success else 1
+
+
+def _run_behavior(args, parser) -> int:
+    if args.dataset.resolve() == args.output.resolve():
+        parser.error("Dataset and answers must use separate files")
+    if args.stage in ("all", "generate"):
+        try:
+            rows = run_behavior_evaluation(
+                args.dataset, args.output, case_ids=args.case_ids
+            )
+        except ValueError as error:
+            parser.error(str(error))
+        failures = sum(row["error"] is not None for row in rows)
+        print(
+            f"Saved {len(rows)} behavior answers to {args.output} ({failures} failed)."
+        )
+        if args.stage == "generate":
+            return 1 if failures else 0
+    try:
+        rows = load_cases(args.output, require_book_refs=False, case_ids=args.case_ids)
+        scored = score_behavior_results(rows, args.results_folder, args.max_concurrent)
+    except ValueError as error:
+        parser.error(str(error))
     for case_id, error in scored.errors.items():
         print(f"{case_id}: {error}", file=sys.stderr)
     return 0 if scored.success else 1

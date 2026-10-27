@@ -29,6 +29,13 @@ export async function proxyChat(request: Request, config = readChatConfig()) {
   }
   const record = body && typeof body === "object" ? body as Record<string, unknown> : {};
   const { message, messages } = record;
+  const chatId = record.chat_id;
+  const persistent = chatId !== undefined;
+  if (persistent && (
+    typeof chatId !== "string" || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(chatId) ||
+    typeof record.request_id !== "string" || !/^[a-zA-Z0-9_-]{1,128}$/.test(record.request_id) ||
+    messages !== undefined
+  )) return failure("Send a valid chat and question identifier.", 422);
   const validQuestion = (value: unknown) => typeof value === "string" &&
     Boolean(value.trim()) && Array.from(value.trim()).length <= 4000;
   let conversation: Record<string, unknown>;
@@ -51,7 +58,7 @@ export async function proxyChat(request: Request, config = readChatConfig()) {
   }
   try {
     const upstream = await fetch(
-      `${config.backendUrl.replace(/\/$/, "")}/chat`,
+      `${config.backendUrl.replace(/\/$/, "")}${persistent ? `/chats/${chatId}/messages` : "/chat"}`,
       {
         method: "POST",
         headers: {
@@ -60,6 +67,7 @@ export async function proxyChat(request: Request, config = readChatConfig()) {
         },
         body: JSON.stringify({
           ...conversation,
+          ...(persistent ? { request_id: record.request_id } : {}),
           book_ids: [...new Set(ids)],
         }),
         signal: request.signal,
@@ -68,6 +76,9 @@ export async function proxyChat(request: Request, config = readChatConfig()) {
     );
     if (!upstream.ok) {
       await upstream.body?.cancel();
+      if (upstream.status === 404 || upstream.status === 409)
+        return failure(upstream.status === 404 ? "Chat not found. Start a new chat." :
+          "This chat is busy or the question was already accepted. Reload before trying again.", upstream.status);
       if (upstream.status === 422)
         return failure(
           "The conversation or selected books are invalid. Review your selection or start a new chat.",

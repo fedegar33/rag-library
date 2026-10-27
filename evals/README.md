@@ -107,6 +107,12 @@ would still evaluate the old questions and answers.
 
 ## Compare retrieval manually
 
+Answer generation is sequential; `--max-concurrent` controls DeepEval scoring
+only. Cohere trial keys can hit the 10-call/minute rerank limit even with
+sequential generation. On a rerank HTTP 429, the application logs a warning,
+waits 60 seconds, and retries up to twice. Persistent rate limits and other API
+errors still fail the case; reranking is never silently skipped.
+
 The search CLI can compare vector, BM25, and hybrid results without generating answers:
 
 ```bash
@@ -236,3 +242,22 @@ DeepEval run per nonempty answerability group.
 Judge outputs can vary even with unchanged configurations. A score increase after
 rescoring is a measurement change, not evidence that retrieval improved. Establish
 a new scoring baseline after checking agreement with human-reviewed examples.
+
+## Agent behavior suite
+
+A separate 14-case suite uses fictional books and controlled tool results to
+measure tool selection, argument quality, response correctness, and presentation.
+It runs the real single-turn agent graph without database or retrieval calls.
+
+```bash
+uv run python eval.py generate --suite agent
+uv run python eval.py score --suite agent
+```
+
+Generation and scoring make model calls; run them deliberately. The tool-name
+sequence is an exact pass/fail gate. Semantic metrics remain score-only pending
+calibration; Argument Correctness is omitted when no tools were called.
+Defaults are isolated under `evals/results/agent-behavior/`. Expectations and tool
+outputs are frozen during generation; scoring never reloads the current dataset.
+See [the agreed design and commands](../docs/agent-behavior-evals.md). Existing
+RAG defaults and verdicts are unchanged.

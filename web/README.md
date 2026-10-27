@@ -24,37 +24,37 @@ in `NEXT_PUBLIC_*` variables. The picker reports catalog loading errors and offe
 
 ## Chat behavior
 
-- Create and switch chats; drafts and messages live in memory and reset on refresh.
+- Create and switch chats at `/chats/<id>`; messages and selected books survive
+  refresh and server restarts. Drafts stay in memory only.
 - Send a question of up to 4,000 characters. Enter sends; Shift+Enter adds a line.
 - Answer text streams as it arrives. A simple status indicates retrieval activity.
 - Switching to a different chat cancels the request and preserves its partial reply.
 - Failures retain partial output with an interrupted label. Retry resends the
   latest failed question with its original book selection, retaining the original reply. Requests never retry automatically.
-- Recent conversation, including completed tool calls and results, is sent to
-  the agent. Python uses a 6,000 estimated-token sliding window of complete turns;
-  the full transcript stays visible. There are no automatic summaries or server
-  persistence. Stop interrupts the current response; no background generation.
+- Python retrieves conversation state from PostgreSQL-backed LangGraph checkpoints
+  and uses a 6,000 estimated-token window of complete historical turns. The full
+  visible transcript is stored separately and survives reload. There are no
+  automatic summaries. Stop interrupts the response; no background generation.
 - Books opens a right panel (full screen on mobile), with an alphabetical catalog,
   checkboxes, and an Apply button. Closing without applying discards changes.
 - The composer shows up to two removable book chips and +N; no chips means Whole
   library. Selection is per chat, retained across switches, and locked during a response.
-- Each question records and displays its sent scope. Uploads, source panels, and
-  conversation persistence remain deferred. Source events stay in message state.
+- Each question records and displays its sent scope. Uploads and source panels
+  remain deferred. Source events are stored with the messages.
 
 ## Streaming contract
 
-The browser uses `useChat` with a `DefaultChatTransport` subclass to POST
-`{ messages, book_ids }` to `/api/chat`. `chat-history.ts` converts text and completed
-dynamic tools into user/assistant/tool messages. Incomplete calls, duplicate source
-events, display metadata, and unanswered past questions are excluded; original UI
-messages are not modified. Tool call IDs link each call with its result. The Next.js
-route validates the envelope and positive integer IDs, then Python validates the
-full history and selects its sliding window. The latest question's selection
-controls retrieval regardless of historical book references. Legacy single-message
-requests remain accepted. Requests are bounded to 1,000 history entries and
-1,000,000 serialized characters in Python, independently of the model token budget.
-It pipes the upstream body without accumulating the answer and forwards request
-cancellation. Browser requests need no backend CORS configuration.
+The browser uses one SDK `Chat` per conversation, hydrated from
+`GET /api/chats/<id>`. Its transport posts `{chat_id, request_id, message, book_ids}`
+to `/api/chat`; the proxy forwards to Python `/chats/{id}/messages`. Only the new
+question is sent. The backend owns agent history and validates current book scope.
+The proxy pipes SSE immediately and forwards cancellation. Conversation create,
+list, get and scope updates use `/api/chats` and `/api/chats/<id>`.
+
+The legacy stateless `/chat` backend and optional legacy transport mode retain
+`chat-history.ts` conversion for independent callers/tests. They accept full
+validated history, but the persistent web workflow never trusts client history.
+Browser requests need no backend CORS configuration.
 
 Python supplies AI SDK UI message SSE v1 events. The client handles text deltas,
 tool activity, source data, `finish`, and `error`. A closed stream or `[DONE]`
@@ -112,5 +112,5 @@ uses an explicit tool-name mapping for catalog cards. `ToolActivity` renders the
 Trace status in stream order. Successful catalog cards wait until the assistant
 turn settles, so preamble, counted status, and final introduction precede them.
 Completed results survive a later interruption; narration remains model-generated.
-There are no artificial delays. Python remains responsible for execution; no automatic tool follow-up,
-new backend protocol, persistence, uploads, or source panel is introduced.
+There are no artificial delays. Python remains responsible for execution. There is no automatic tool follow-up,
+file upload or source panel.

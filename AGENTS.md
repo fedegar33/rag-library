@@ -109,16 +109,24 @@ uv run ruff format --check .
 - Hybrid retrieval with equal-contribution reciprocal rank fusion (RRF), used by
   the agent and evaluations by default
 - LangChain components for document splitting, retrieval integration, prompts,
-  model calls, and a stateless catalog agent
+  model calls, and a catalog agent with optional PostgreSQL checkpoints
 - OpenAI embeddings and chat models
 - Next.js App Router, React, TypeScript, Tailwind CSS v4, shadcn/ui, and
   AI Elements in `web/`, with Node 24 and pnpm 10.33.2
 
-The frontend consumes Python `/chat` through a same-origin Next.js SSE proxy
-with per-chat book selection. Chats are in memory and send conversational history,
-including completed tool calls/results. Python applies a 6,000 estimated-token
-sliding window of complete turns without summaries. Source panels, server-side
-conversation persistence, and LangChain.js remain deferred. Python owns agent and retrieval behavior. There is no AWS deployment, graph database,
+The frontend consumes Python `/chats/{id}/messages` through a same-origin Next.js
+SSE proxy, with per-chat book selection and stable `/chats/<id>` URLs. PostgreSQL
+stores `conversations`, `chat_turns` (complete UI parts and scope metadata), and
+LangGraph checkpoints via `AsyncPostgresSaver`. Python owns history; the frontend
+sends only the new question and a request ID. Resume model history from the last
+completed checkpoint, never a failed intermediate checkpoint. Keep interrupted
+attempts visible, without automatic replay. Save UI completion and the checkpoint
+pointer together; serialize sends/scope changes with a PostgreSQL advisory lock.
+Duplicate request IDs return 409. Apply the 6,000 estimated-token sliding window
+transiently before model calls, preserving full stored history and current tool
+work. Drafts remain in memory. CLI/evals and legacy `/chat` stay stateless by default.
+Source panels, cross-chat memory Stores and LangChain.js remain deferred. Python
+owns agent and retrieval behavior. There is no AWS deployment, graph database,
 advanced agent workflow, or production ingestion service yet.
 
 ## Project structure and conventions

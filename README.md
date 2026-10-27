@@ -7,9 +7,8 @@ Python is managed with `uv`; the independent `web/` app uses pnpm.
 This is a learning and experimentation project for querying and analyzing books.
 Keep retrieval, chunking, persistence, prompts, and evaluation understandable,
 preserve book/chapter/chunk provenance, and add infrastructure when it solves a
-current problem. The web app sends recent conversation and streams answers through
-the Python agent; server-side conversation persistence and production deployment
-remain deferred.
+current problem. Chats persist in PostgreSQL through LangGraph checkpoints and
+application-owned presentation records. Production deployment remains deferred.
 
 The stack uses FastAPI, SQLAlchemy 2.x, PostgreSQL with pgvector,
 LangChain components, and OpenAI embedding and chat models. The web app
@@ -93,12 +92,13 @@ no longer used. `BACKEND_API_URL` defaults to `http://127.0.0.1:8000`; keep mode
 database credentials in the root `.env`.
 
 The web app is available at <http://localhost:3000>. It proxies questions through
-Next.js `/api/chat` to Python `/chat`, streaming text and retrieval status.
-Chats and drafts are in memory and reset on refresh. Messages and completed tool
-executions are sent as history; Python keeps a sliding window of recent turns.
+Next.js `/api/chat` to Python `/chats/{id}/messages`, streaming text and retrieval
+status. Chats reopen at `/chats/<id>` after refresh or a server restart. Messages,
+tool results, sources and selected books are stored in PostgreSQL; drafts remain
+in memory. Python loads agent history from checkpoints and bounds model input.
 Switching chats cancels
 the current response and preserves partial output; failures offer manual Retry.
-Source panels, conversation persistence, and LangChain.js remain deferred.
+Source panels and LangChain.js remain deferred.
 Source events are retained in message state for future provenance UI.
 
 | Command | Purpose |
@@ -359,8 +359,8 @@ select them. Notebook callers can set `retrieval_method="vector"` or `"bm25"`
 when constructing a context, or set `candidate_limit` for hybrid experiments.
 Set `rerank=False` on the context for the RRF baseline. The candidate default is
 still 20 per method; set `candidate_limit=100` to reproduce the Church experiment.
-The caller keeps the selected IDs between requests; the backend does not persist
-chats or attachment state.
+The standalone `/chat` endpoint remains stateless. The web app uses the durable
+conversation endpoints described below.
 
 `AgentContext` in `agent/context.py` stores only validated `attached_book_ids`
 and retrieval settings, and is passed to the agent. Empty IDs mean the whole
@@ -430,7 +430,7 @@ Each request allows at most three model calls and two tool calls. Model calls
 have a 30-second timeout with automatic retries disabled. These limits apply
 to the agent; embedding and reranking calls retain their provider defaults.
 
-The API has no authentication or server-side conversation/session persistence.
+The API has no authentication and assumes a single trusted user.
 FastAPI's `/docs` remains available for inspecting the chat request schema.
 
 ### Streaming chat
@@ -512,15 +512,65 @@ because the HTTP status has already been sent. Disconnects close the event
 iterator and cancel async graph execution; an already-running synchronous
 retrieval/provider call may finish in its worker thread.
 
-The frontend uses AI SDK transport to consume this protocol. Its server-side
-proxy sends `{messages, book_ids}` using the current question's selection, and retains
-custom `data-source` parts without a source panel. It requires `finish` before
-treating a response as complete. Completed tool parts become matched call/result
-messages; duplicate source events, pending calls, and UI metadata are omitted.
-Unanswered historical questions are omitted; interrupted text and completed tool
-results can remain as context. Full UI history stays visible even when Python
-windows model input. The caller owns chat state; no server persistence or
-authentication is added here.
+The frontend uses AI SDK transport to consume this protocol, retaining custom
+`data-source` parts without a source panel. It requires `finish` before treating a
+response as complete. The durable endpoint uses the same SSE protocol.
+
+### Persistent conversations
+
+The web app sends only the new question, its message ID and its book scope.
+Python owns history. One server-generated UUID identifies the chat, its URL and
+LangGraph `thread_id`. All storage uses the existing `DATABASE_URL`:
+
+- `conversations`: title (first question), current books, timestamps and the last
+  successfully completed checkpoint ID.
+- `chat_turns`: ordered user/assistant UI messages, including tool parts, sources,
+  sent book metadata and completion/interruption status.
+- LangGraph tables: agent checkpoints, managed by `AsyncPostgresSaver` from
+  `langgraph-checkpoint-postgres`. `PostgresStore` is not needed: cross-chat
+  preferences/memory are outside this scope.
+
+Tables are created lazily on the first conversation request; checkpoint migrations
+run under a PostgreSQL advisory lock. Existing book/chunk rows are unchanged.
+The web uses these endpoints through same-origin Next.js proxies:
+
+| Endpoint | Purpose |
+| --- | --- |
+| `POST /chats` | Create a conversation with a stable UUID |
+| `GET /chats` | List conversations, most recently updated first |
+| `GET /chats/{id}` | Restore metadata and the complete visible transcript |
+| `PATCH /chats/{id}` | Save `{book_ids: [...]}` after validating catalog membership |
+| `POST /chats/{id}/messages` | Stream `{request_id, message, book_ids: [...]}` |
+
+A request ID identifies a single accepted turn. Duplicate IDs and concurrent sends
+on the same chat return 409 without executing the model. A PostgreSQL session
+advisory lock serializes each conversation across workers and releases on connection
+close. Different chats have independent locks.
+
+Assistant presentation is snapshotted during streaming (up to every 500 ms as events
+arrive, plus completed tools/sources), on interruption and before `finish`.
+A hard process failure can lose output since the last snapshot. On reload, unfinished
+turns are displayed as interrupted; there is no automatic replay or resumption.
+The next question starts from the last **completed** checkpoint, excluding failed
+attempts from model history while preserving them in the visible transcript.
+Completion saves the UI turn and its checkpoint pointer in one application transaction.
+
+A model-call middleware applies the existing 6,000 estimated-token window to whole
+historical turns, preserving current-turn tool work. It changes only model input,
+not stored history. Each invocation still supplies the current book scope through
+`AgentContext`, including explicit retries with their original scope. CLI, evals
+and the legacy `/chat` endpoint remain independent and have no checkpointer by default.
+
+Offline tests run with `make check-api` and `pnpm --dir web test`. To exercise the
+real PostgreSQL saver, CRUD, duplicate protection and cross-connection locks without
+model calls, run:
+
+```bash
+RAG_TEST_POSTGRES=1 LANGSMITH_TRACING=false LANGCHAIN_TRACING_V2=false \
+  uv run python -m unittest discover -s tests -p test_chat_postgres.py
+```
+
+This opt-in test creates and removes an isolated schema in the configured database.
 
 ## Project layout
 

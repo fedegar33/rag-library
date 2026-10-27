@@ -11,6 +11,7 @@ export type Chat = {
   books: Book[];
   client: SDKChat<LibraryMessage>;
   draft: string;
+  loaded?: boolean;
 };
 
 export function emptyChat(id: string): Chat {
@@ -21,5 +22,28 @@ export function emptyChat(id: string): Chat {
     books: [],
     client: createLibraryChat(id),
     draft: "",
+  };
+}
+
+export type SavedChat = {
+  id: string;
+  title: string;
+  books: Book[];
+  created_at: string;
+  updated_at: string;
+  messages?: LibraryMessage[];
+};
+
+export function restoreChat(saved: SavedChat): Chat {
+  return {
+    id: saved.id,
+    group: "Today",
+    draft: "",
+    title: saved.title,
+    books: saved.books,
+    loaded: saved.messages !== undefined,
+    client: createLibraryChat(saved.id, undefined, {
+      persistent: true, messages: saved.messages ?? [],
+    }),
   };
 }

@@ -64,15 +64,16 @@ User decisions and this project's conventions take precedence.
   wait for the assistant turn to settle; tool completion and text-end alone
   must not release cards. Keep valid results after later interruption. Show
   the catalog count in the tool status, and never synthesize agent narration.
-- The UI consumes Python `/chat` through the same-origin Next.js `/api/chat`
-  streaming proxy. `useChat` owns SDK messages/status/cancellation through one
-  SDK `Chat` instance per conversation; the shell owns only sidebar metadata and
-  drafts. Chats are in memory; send conversational text and completed tool
-  calls/results through `chat-history.ts`. Python applies a sliding window by
-  complete turns; never trim or delete the displayed transcript to enforce it.
-  Omit incomplete tool calls and duplicate source data, preserve matched IDs,
-  and use the newest question's book selection. Server persistence, source panels,
-  background generation, and LangChain.js are deferred.
+- The UI consumes Python `/chats/{id}/messages` through the same-origin Next.js
+  `/api/chat` proxy. `useChat` owns SDK messages/status/cancellation through one
+  SDK `Chat` per conversation, hydrated from stored UI messages. Python owns
+  checkpoints and history; send only `{chat_id, request_id, message, book_ids}`.
+  Chats live at `/chats/<id>` and restore through `/api/chats/<id>`; create/list
+  and scope updates use the conversation resource proxies. Save book selection
+  before changing it locally and show failures without broadening retrieval.
+  Drafts stay in memory only. Preserve the full transcript independently of the
+  model's token window. The legacy transport/history adapter remains for independent
+  stateless callers. Source panels, background generation and LangChain.js remain deferred.
 - Agent execution, retrieval, database access, and model credentials belong
   to Python. AI SDK React manages frontend chat state and transport; it does not
   establish a second agent. Python owns the streaming backend contract.
@@ -88,7 +89,7 @@ User decisions and this project's conventions take precedence.
   Save book IDs and titles on each user message; retries use its original scope.
   Catalog errors retain current selection and never broaden retrieval silently.
 - Preserve book/chapter/chunk provenance when API integration is added.
-  Python `/chat` streams answers with explicit book attachments and recent history
+  Python streams answers with explicit book attachments and checkpoint-backed history
   using the AI SDK UI message SSE protocol.
 
 Run `pnpm test`, `make check-web`, and `make build` for frontend integration

@@ -2,6 +2,7 @@
 
 from collections.abc import Sequence
 
+from langchain.agents.middleware import AgentMiddleware
 from langchain_core.messages import BaseMessage, HumanMessage
 from langchain_core.messages.utils import count_tokens_approximately
 
@@ -38,3 +39,22 @@ def window_messages(
         kept.append(turn)
         remaining -= cost
     return [message for turn in reversed(kept) for message in turn] + [messages[-1]]
+
+
+class ConversationWindow(AgentMiddleware):
+    """Bound model input without deleting persisted messages or current tool work."""
+
+    async def awrap_model_call(self, request, handler):
+        messages = request.messages
+        current = next(
+            (
+                i
+                for i in range(len(messages) - 1, -1, -1)
+                if isinstance(messages[i], HumanMessage)
+            ),
+            None,
+        )
+        if current is None:
+            return await handler(request)
+        visible = window_messages(messages[: current + 1]) + messages[current + 1 :]
+        return await handler(request.override(messages=visible))

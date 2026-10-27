@@ -1,9 +1,11 @@
-"""Build and run the stateless book agent, recording actual tool executions."""
+"""Build book agents with optional checkpoints and bounded execution per turn."""
 
 import json
+from collections.abc import Sequence
 
 from langchain.agents import create_agent
 from langchain.agents.middleware import (
+    AgentMiddleware,
     ModelCallLimitMiddleware,
     ToolCallLimitMiddleware,
 )
@@ -19,13 +21,20 @@ from rag_library.agent.tools import answer_book_question, list_available_books
 from rag_library.config import get_settings
 
 
-def build_agent(model: str | BaseChatModel, *, structured_output: bool = True):
-    """Build an agent with independent state and bounded execution per invocation."""
+def build_agent(
+    model: str | BaseChatModel,
+    *,
+    structured_output: bool = True,
+    middleware: Sequence[AgentMiddleware] = (),
+    checkpointer=None,
+):
+    """Build a bounded agent, stateless unless a checkpointer is supplied."""
     return create_agent(
         model=model,
         tools=[list_available_books, answer_book_question],
         system_prompt=SYSTEM_PROMPT,
         context_schema=AgentContext,
+        checkpointer=checkpointer,
         response_format=(
             ProviderStrategy(AgentAnswer, strict=True) if structured_output else None
         ),
@@ -36,11 +45,17 @@ def build_agent(model: str | BaseChatModel, *, structured_output: bool = True):
             ToolCallLimitMiddleware[AgentContext, AgentAnswer](
                 run_limit=2, exit_behavior="error"
             ),
+            *middleware,
         ],
     )
 
 
-def get_agent(*, structured_output: bool = True):
+def get_agent(
+    *,
+    structured_output: bool = True,
+    middleware: Sequence[AgentMiddleware] = (),
+    checkpointer=None,
+):
     """Create a fresh configured agent for the API or notebook experiments."""
     settings = get_settings()
     return build_agent(
@@ -51,6 +66,8 @@ def get_agent(*, structured_output: bool = True):
             max_retries=0,
         ),
         structured_output=structured_output,
+        middleware=middleware,
+        checkpointer=checkpointer,
     )
 
 

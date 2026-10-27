@@ -1,5 +1,13 @@
 # AI Engineering Diary
 
+## 2026-10-26
+
+- **Persistent chat state:** PostgreSQL checkpoints preserve agent history separately from visible partial replies; isolated database tests verified committed-checkpoint recovery excludes failed attempts without replaying tools.
+
+## 2026-10-24
+
+- **Agent evaluation coverage:** Controlled tool fixtures isolate agent decisions from retrieval; offline graph tests verify attachment scope, while exact tool matching catches extra calls and semantic metrics remain diagnostic.
+
 ## 2026-10-23
 
 - **Conversational sliding window:** Preserved tool-call/result pairs while trimming whole historical turns by estimated tokens; offline graph tests verified follow-up context, no historical tool replay, and current attachment scope.

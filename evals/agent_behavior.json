@@ -1,0 +1,242 @@
+{
+  "suite": "agent-behavior",
+  "version": 1,
+  "response_instructions": [
+    "For requests to list available books, provide a brief final introduction to the cards without repeating titles, authors, categories, or cover URLs as a prose list. If the catalog is empty, say so instead.",
+    "For greetings and thanks, respond naturally and briefly. For requests unrelated to books or the library, gently redirect to the library without answering the unrelated request.",
+    "When a content question has no identifiable character, action, or referent, ask a focused clarification instead of guessing. When a tool result reports no evidence or an empty library, acknowledge that limitation clearly."
+  ],
+  "fixtures": {
+    "library": {
+      "books": [
+        {
+          "id": 101,
+          "title": "The Salt Compass",
+          "authors": "Mara Vilar",
+          "categories": [
+            "Fiction"
+          ],
+          "cover_url": null
+        },
+        {
+          "id": 102,
+          "title": "The Lighthouse Maps",
+          "authors": "Rafael Soria",
+          "categories": [
+            "Adventure"
+          ],
+          "cover_url": null
+        }
+      ],
+      "sources": [
+        {
+          "book_id": 101,
+          "book_title": "The Salt Compass",
+          "chapter_number": 1,
+          "chunk_index": 0,
+          "text": "Elena Salvat works at the observatory in Puerto Claro. Every morning she checks the instruments before opening the doors."
+        },
+        {
+          "book_id": 102,
+          "book_title": "The Lighthouse Maps",
+          "chapter_number": 1,
+          "chunk_index": 0,
+          "text": "Tomas Rivas is the lighthouse keeper on Bruma Island. He lives beside the pier and records the tides in a blue notebook."
+        }
+      ]
+    },
+    "empty": {
+      "books": [],
+      "sources": []
+    },
+    "unknown-author": {
+      "books": [
+        {
+          "id": 101,
+          "title": "The Salt Compass",
+          "authors": null,
+          "categories": [
+            "Fiction"
+          ],
+          "cover_url": null
+        }
+      ],
+      "sources": []
+    },
+    "no-evidence": {
+      "books": [
+        {
+          "id": 101,
+          "title": "The Salt Compass",
+          "authors": "Mara Vilar",
+          "categories": [
+            "Fiction"
+          ],
+          "cover_url": null
+        },
+        {
+          "id": 102,
+          "title": "The Lighthouse Maps",
+          "authors": "Rafael Soria",
+          "categories": [
+            "Adventure"
+          ],
+          "cover_url": null
+        }
+      ],
+      "sources": []
+    }
+  },
+  "cases": [
+    {
+      "id": "catalog-01",
+      "category": "catalog",
+      "question": "What books are available?",
+      "fixture": "library",
+      "book_ids": [],
+      "expected_tools": [
+        "list_available_books"
+      ],
+      "expected_answer": "A brief introduction presenting the available catalog cards. Do not repeat the list in prose or invent details."
+    },
+    {
+      "id": "catalog-02",
+      "category": "catalog",
+      "question": "Which books are available in the library?",
+      "fixture": "library",
+      "book_ids": [
+        101
+      ],
+      "expected_tools": [
+        "list_available_books"
+      ],
+      "expected_answer": "A brief introduction to the available-book cards. The catalog includes both books despite the attachment; no duplicate prose list or invented data."
+    },
+    {
+      "id": "catalog-03",
+      "category": "catalog",
+      "question": "Show me the available books.",
+      "fixture": "empty",
+      "book_ids": [],
+      "expected_tools": [
+        "list_available_books"
+      ],
+      "expected_answer": "Explain that no books are available in the library. Do not present a nonexistent catalog or invent titles."
+    },
+    {
+      "id": "catalog-04",
+      "category": "catalog",
+      "question": "Which books can I consult?",
+      "fixture": "unknown-author",
+      "book_ids": [],
+      "expected_tools": [
+        "list_available_books"
+      ],
+      "expected_answer": "A brief introduction to the available cards. Do not attribute or invent an author; mentioning the missing metadata is unnecessary."
+    },
+    {
+      "id": "content-01",
+      "category": "content",
+      "question": "Where does Elena Salvat work?",
+      "fixture": "library",
+      "book_ids": [
+        101
+      ],
+      "expected_tools": [
+        "answer_book_question"
+      ],
+      "expected_answer": "Elena Salvat works at the observatory in Puerto Claro. Accept paraphrases and source references; do not add unsupported facts."
+    },
+    {
+      "id": "content-02",
+      "category": "content",
+      "question": "What is the town containing Elena Salvat’s workplace?",
+      "fixture": "library",
+      "book_ids": [
+        101
+      ],
+      "expected_tools": [
+        "answer_book_question"
+      ],
+      "expected_answer": "The town is Puerto Claro. Additional details are acceptable only if supported by the actual retrieved passage."
+    },
+    {
+      "id": "content-03",
+      "category": "content",
+      "question": "How old is Elena Salvat?",
+      "fixture": "no-evidence",
+      "book_ids": [
+        101
+      ],
+      "expected_tools": [
+        "answer_book_question"
+      ],
+      "expected_answer": "Explain that there is insufficient evidence to determine her age; do not invent or infer an age."
+    },
+    {
+      "id": "content-04",
+      "category": "content",
+      "question": "Where does Elena Salvat work?",
+      "fixture": "empty",
+      "book_ids": [],
+      "expected_tools": [
+        "answer_book_question"
+      ],
+      "expected_answer": "Explain that there are no books available in the library to consult. Do not invent a workplace."
+    },
+    {
+      "id": "social-01",
+      "category": "social",
+      "question": "Hello!",
+      "fixture": "library",
+      "book_ids": [],
+      "expected_tools": [],
+      "expected_answer": "A natural brief greeting, optionally offering help with the library. No tool calls."
+    },
+    {
+      "id": "social-02",
+      "category": "social",
+      "question": "Thanks for your help!",
+      "fixture": "library",
+      "book_ids": [],
+      "expected_tools": [],
+      "expected_answer": "A natural brief acknowledgment. No tool calls or unrelated factual answer."
+    },
+    {
+      "id": "outside-01",
+      "category": "out_of_scope",
+      "question": "What is the weather in Montevideo today?",
+      "fixture": "library",
+      "book_ids": [],
+      "expected_tools": [],
+      "expected_answer": "Gently redirect toward questions about books or the library. Do not provide a weather forecast or call tools."
+    },
+    {
+      "id": "outside-02",
+      "category": "out_of_scope",
+      "question": "What is 15 multiplied by 8?",
+      "fixture": "library",
+      "book_ids": [],
+      "expected_tools": [],
+      "expected_answer": "Briefly and gently redirect to questions about books or the library. Do not solve the arithmetic question or call tools."
+    },
+    {
+      "id": "clarify-01",
+      "category": "clarification",
+      "question": "What happened to that character?",
+      "fixture": "library",
+      "book_ids": [],
+      "expected_tools": [],
+      "expected_answer": "Ask the user to identify the character and, if needed, the book. Do not assume a referent or call tools."
+    },
+    {
+      "id": "clarify-02",
+      "category": "clarification",
+      "question": "Why did she do that?",
+      "fixture": "library",
+      "book_ids": [],
+      "expected_tools": [],
+      "expected_answer": "Ask a focused clarification identifying the character and action being referenced. No guessed referent and no tools."
+    }
+  ]
+}

@@ -1,15 +1,21 @@
 """Optional Cohere reranking of already scoped hybrid candidates."""
 
+import logging
 from collections.abc import Sequence
 from dataclasses import replace
 from math import isfinite
+from time import sleep
 
 from cohere import ClientV2
+from cohere.errors import TooManyRequestsError
 
 from rag_library.config import get_settings
 from rag_library.rag.search import SearchResult
 
 RERANK_MODEL = "rerank-v5.0-pro"
+RATE_LIMIT_RETRIES = 2
+RATE_LIMIT_WAIT_SECONDS = 60
+logger = logging.getLogger(__name__)
 
 
 def get_rerank_api_key() -> str:
@@ -41,13 +47,28 @@ def rerank_results(
         return []
     top_n = min(limit, len(candidates))
     with ClientV2(api_key=api_key, timeout=60.0) as client:
-        response = client.rerank(
-            model=RERANK_MODEL,
-            query=query,
-            documents=[candidate.text for candidate in candidates],
-            top_n=top_n,
-            request_options={"max_retries": 0},
-        )
+        for attempt in range(RATE_LIMIT_RETRIES + 1):
+            try:
+                response = client.rerank(
+                    model=RERANK_MODEL,
+                    query=query,
+                    documents=[candidate.text for candidate in candidates],
+                    top_n=top_n,
+                    request_options={"max_retries": 0},
+                )
+                break
+            except TooManyRequestsError:
+                if attempt == RATE_LIMIT_RETRIES:
+                    raise
+                # Trial keys allow 10 calls/minute and may omit Retry-After.
+                # Wait a full window; keep SDK retries off to bound attempts.
+                logger.warning(
+                    "Cohere rate limit reached; waiting %ss before retry %s/%s.",
+                    RATE_LIMIT_WAIT_SECONDS,
+                    attempt + 1,
+                    RATE_LIMIT_RETRIES,
+                )
+                sleep(RATE_LIMIT_WAIT_SECONDS)
     if len(response.results) != top_n:
         raise ValueError("Reranker returned an unexpected number of results")
     results = []

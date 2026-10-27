@@ -7,6 +7,8 @@ from dataclasses import replace
 from types import SimpleNamespace
 from unittest.mock import patch
 
+from cohere.errors import TooManyRequestsError
+
 from rag_library.cli.search import format_results, main
 from rag_library.rag.hybrid_search import hybrid_search, reciprocal_rank_fusion
 from rag_library.rag.reranking import RERANK_MODEL, get_rerank_api_key, rerank_results
@@ -86,6 +88,42 @@ class RerankingTests(unittest.TestCase):
         self.client.rerank.side_effect = RuntimeError("Cohere unavailable")
         with self.assertRaisesRegex(RuntimeError, "Cohere unavailable"):
             rerank_results("cat", self.pool, api_key="test")
+
+    @patch("rag_library.rag.reranking.sleep")
+    def test_rate_limit_waits_then_retries_same_candidates(self, sleep):
+        self.response([(1, 0.95), (0, 0.4)])
+        self.client.rerank.side_effect = [
+            TooManyRequestsError(body={"message": "10 API calls / minute"}),
+            self.client.rerank.return_value,
+        ]
+        with self.assertLogs("rag_library.rag.reranking", level="WARNING"):
+            results = rerank_results("cat", self.pool, api_key="test")
+        sleep.assert_called_once_with(60)
+        self.assertEqual(self.client.rerank.call_count, 2)
+        first, second = self.client.rerank.call_args_list
+        self.assertEqual(first, second)
+        self.assertEqual([r.book_id for r in results], [8, 7])
+
+    @patch("rag_library.rag.reranking.sleep")
+    def test_persistent_rate_limit_propagates_after_two_retries(self, sleep):
+        error = TooManyRequestsError(body={"message": "Rate limit"})
+        self.client.rerank.side_effect = error
+        with (
+            self.assertLogs("rag_library.rag.reranking", level="WARNING"),
+            self.assertRaises(TooManyRequestsError) as raised,
+        ):
+            rerank_results("cat", self.pool, api_key="test")
+        self.assertIs(raised.exception, error)
+        self.assertEqual(self.client.rerank.call_count, 3)
+        self.assertEqual([call.args for call in sleep.call_args_list], [(60,), (60,)])
+
+    @patch("rag_library.rag.reranking.sleep")
+    def test_other_errors_fail_without_waiting_or_retrying(self, sleep):
+        self.client.rerank.side_effect = RuntimeError("Cohere unavailable")
+        with self.assertRaisesRegex(RuntimeError, "Cohere unavailable"):
+            rerank_results("cat", self.pool, api_key="test")
+        sleep.assert_not_called()
+        self.client.rerank.assert_called_once()
 
     @patch("rag_library.rag.reranking.get_settings")
     def test_missing_key_reports_setup_instruction(self, settings):

@@ -5,10 +5,12 @@ import { LibraryChatTransport } from "./chat-transport.ts";
 export function createLibraryChat(
   id: string,
   fetcher?: typeof globalThis.fetch,
+  options: { persistent?: boolean; messages?: LibraryMessage[] } = {},
 ): Chat<LibraryMessage> {
   const chat = new Chat<LibraryMessage>({
     id,
-    transport: new LibraryChatTransport(fetcher),
+    messages: options.messages,
+    transport: new LibraryChatTransport(fetcher, options.persistent),
     // Do not enable automatic tool follow-ups or stream resumption: Python owns
     // the whole agent run and only explicit user actions may make another call.
     onFinish: ({ message, isAbort, isDisconnect, isError }) => {
